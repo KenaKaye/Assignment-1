@@ -1,0 +1,69 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Noto Sans Ethiopic Local";
+  src: url("/fonts/NotoSansEthiopic-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --background: #000000;
+  --foreground: #f8fafc;
+  --neon-blue: #00f0ff;
+  --neon-blue-glow: rgba(0, 240, 255, 0.4);
+  --gold: #ffd700;
+  --gold-glow: rgba(255, 215, 0, 0.4);
+  --font-ethiopic: var(--font-ethiopic), "Noto Sans Ethiopic Local", "Nyala", "Abyssinica SIL", sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-ethiopic: var(--font-ethiopic);
+}
+
+body {
+  background-color: #000000;
+  color: #f8fafc;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(0, 240, 255, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(255, 215, 0, 0.05) 0%, transparent 45%);
+  background-attachment: fixed;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+  border: 1px solid rgba(0, 240, 255, 0.2);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0284c7;
+}
+
+/* Neon glow helper classes */
+.glow-cyan-card {
+  box-shadow: 0 0 25px -5px rgba(0, 240, 255, 0.25), 0 0 10px -2px rgba(255, 215, 0, 0.15);
+}
+
+.glow-gold-card {
+  box-shadow: 0 0 20px -3px rgba(255, 215, 0, 0.3);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+}
+
+.text-glow-gold {
+  text-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+}

@@ -1,1 +1,38 @@
+# Large corpus text files
+*.txt
+*.TXT
+data/*.txt
+data/*.TXT
+data/GPAC.txt
 Docs/
+
+# Ensure data directory and metadata are tracked
+!data/
+!data/*.json
+!data/README.md
+!data/.gitkeep
+
+# Large serialized models
+*.pkl
+*.pickle
+!models/
+!models/.gitkeep
+!models/README.md
+
+# Python & Jupyter cache
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+
+# Environments & Dependencies
+venv/
+env/
+.env
+node_modules/
+.next/
+
+# OS generated
+Thumbs.db
+Desktop.ini
+.DS_Store
