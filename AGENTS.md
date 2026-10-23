@@ -3,7 +3,7 @@
 These instructions apply to every agent or assistant working in this repository. They merge the general coding guidelines below with rules specific to this assignment. The project-specific rules take priority where they conflict with the general ones.
 
 **Assignment:** NLP Assignment 1 (10%), Addis Ababa University, School of Information Technology and Engineering. Instructor: Fantahun B. (PhD).
-**Reference files:** `NLP_Assignment1_Questions.md` (the questions), `NLP_Assignment1_Implementation_Plan.md` (the step-by-step plan and benchmarks).
+**Reference files:** `NLP_Assignment1_Questions.md` (the questions), `NLP_Assignment1_Implementation_Plan.md` (the step-by-step plan, benchmarks, and artifact layout), `NLP_Assignment1_UI_Plan.md` (the Next.js interface). If these files disagree, the implementation plan wins, and the other files must be updated to match it.
 
 Tradeoff: these guidelines favor caution over speed. For trivial tasks, use judgment.
 
@@ -78,7 +78,7 @@ For multi-step tasks, state a brief plan:
 
 Follow the order in the implementation plan. Do not skip ahead.
 
-1. Step 0: verify the downloaded corpus file.
+1. Step 0: verify the raw corpus, then build the cleaned corpus, the vocabulary, and the token array (plan items 8 to 12).
 2. Q1.1 through Q1.8, in order.
 3. Q2 (intrinsic evaluation).
 4. Q3 (extrinsic evaluation).
@@ -90,14 +90,17 @@ Each step has a verification check in the plan. Do not start the next step until
 ### B2. Verify the Data Before Anything Else
 
 - Never run analysis on the corpus until the Step 0 checks pass: correct file, UTF-8 decoding, Ethiopic character share above 80%, no HTML content, no truncation, and a recorded SHA-256 checksum.
+- All analysis reads `data/GPAC_cleaned.txt` and the artifacts listed in the plan's artifact layout. Never read the raw `GPAC.txt` for analysis, and never use the Kaggle `Cleaned_GPAC.txt` as input.
 - Record the verification result in `README.md`.
 - If the file looks wrong, stop and ask the user for the correct file. Do not substitute another file or fabricate data.
 
 ### B3. Prevent Data Leakage
 
-- Split the corpus into train and test sets once, using `SEED = 42`, and save the split to `data/`. Reuse the saved split. Do not re-split silently.
-- Build n-gram counts from the training split only when evaluating in Q2 and Q3.
-- Never tune any threshold (for example, τ in Q3) on the test split. Tune it on training data and then apply it once to the test set.
+- Split the corpus by sentence into train and test sets once, using `SEED = 42`, and save the line indices to `data/split_indices_seed42.json`. Reuse the saved split. Do not re-split silently.
+- Build n-gram counts from the training split only when evaluating in Q2, Q3, and Q4. The application uses the same training-split counts as its evaluation.
+- Words that occur exactly once in the training split become `<UNK>` in the training counts. Test words not in the training vocabulary are scored as `<UNK>`.
+- Never tune any threshold (for example, τ in Q3) on the test split. Tune it on the tuning set taken from the training split (plan, Q3 step 2) and then apply it once to the test set.
+- No sampling of the data. The only permitted subset is the Q4 evaluation runtime exception in the plan, which must be recorded.
 - Never use test sentences to choose smoothing parameters, stopwords, or the usability threshold.
 
 ### B4. Reproducibility
@@ -133,7 +136,7 @@ Every solution file must make it easy for the teacher to find each answer.
 ### B7. Amharic Text Handling
 
 - Read and write all files as UTF-8.
-- Keep Ethiopic characters (Unicode U+1200 to U+137F) and Ethiopic punctuation (`።`, `፡`, `፣`). Remove Latin letters, digits, and other symbols during normalization.
+- Keep Ethiopic letters (Unicode U+1200 to U+135A) and the punctuation `።` (U+1362), `፡` (U+1361), `፣` (U+1363), `?`, and `!`. Remove Latin letters, digits, Ethiopic numerals, and other symbols during normalization. This is the same definition as the plan's cleaning step, Step 0, item 9.
 - Use `።` as a sentence boundary. Decide whether `፡` and `፣` are sentence boundaries by inspecting samples, and record the decision.
 - Word clouds must use an Ethiopic font (Noto Sans Ethiopic). Check that the rendered labels are readable. Boxes mean the font is missing, and the word clouds do not count until this is fixed.
 - Do not normalize away the morphology of Amharic words without saying so. Note in the report that inflected forms are counted as separate tokens.
@@ -150,15 +153,25 @@ Every solution file must make it easy for the teacher to find each answer.
 - Notebook names: `Q1_ngram_model.ipynb`, `Q2_intrinsic_eval.ipynb`, `Q3_extrinsic_eval.ipynb`, `Q4_predictive_app.ipynb`.
 - Application code for Q4 goes in `app/`. Keep the application logic separate from the notebook experiments.
 - Figures go in `figures/` with descriptive names, for example `q1_6_wordcloud_bigram_before.png`.
-- Keep `data/` small. Do not commit the full corpus if it is large. Commit the split indices and the verification block.
+- Follow the artifact layout table in the plan. Commit only the files marked "Yes" there. The large files in `data/` are rebuilt by the scripts and must be listed in `.gitignore`.
+- Build scripts live in `scripts/` and are run once; notebooks and the application load their outputs.
 - Keep `README.md` current: corpus source, verification result, environment, how to run each notebook, and the group members.
 
 ### B10. Q4 Application Scope
 
 - Build only what the assignment asks: read input, take the last one or two words, return the top five candidates with probabilities, and let the user select one and continue.
-- Do not add a web interface, a database, user accounts, or a model other than the n-gram model unless the instructor asks for them.
-- Precompute the candidate index once at startup. Do not scan all n-gram counts on each request.
-- Handle these cases: empty input, words outside the vocabulary (use backoff), and an exit command.
+- The Next.js web interface is allowed only as described in `NLP_Assignment1_UI_Plan.md`. The CLI stays unchanged in behavior. Do not add a database, user accounts, or a model other than the n-gram model.
+- Load the memory-mapped artifacts once at startup. Do not rebuild counts or read the corpus at launch. Do not scan the count arrays on each request; use the binary-search lookups described in the plan.
+- Handle these cases: empty input, words outside the vocabulary (map to `<UNK>`), and an exit command.
+
+### B13. Where Code Runs
+
+- Heavy work runs on Colab only: any pass over `GPAC.txt` or `GPAC_cleaned.txt`, any sort, count, or lookup over `tokens.npy` or the count arrays, any perplexity or evaluation over the test split, and any build of counts.
+- Every heavy script calls `require_colab()` and must refuse to run on the PC. Do not work around this check. The `ALLOW_HEAVY_LOCAL=1` override may be used only for a deliberate, recorded decision.
+- The PC runs light work only: reading `results/`, rendering figures, running the CLI, the API, and the Next.js UI against the downloaded training-split artifacts, checksum checks, and unit tests on small fixtures in the repository.
+- Write the Colab notebook `colab/Colab_Build.ipynb` and the scripts listed in the plan's "Colab Build and PC Results" section. Do not write heavy code that is meant to run locally.
+- Heavy stages use checkpoints: a stage is skipped only if its output and its SHA-256 in `data/checksums.json` both exist and match.
+- Before any notebook or app runs on the PC, `scripts/check_download.py` must report every downloaded checksum as matching.
 
 ### B11. When to Ask Instead of Proceeding
 
@@ -169,6 +182,7 @@ Ask before implementing when any of the following is true:
 - A required benchmark is missing or unclear.
 - Two group members' instructions conflict.
 - A change would touch the test split, the saved splits, or the verification record.
+- A counting stage exceeds the 8 GB memory budget and the partition fallback has not been tried or recorded.
 
 Ask once, clearly, and state the options you see and your recommendation. Do not ask questions that the plan already answers.
 
