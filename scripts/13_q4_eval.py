@@ -33,7 +33,10 @@ from scripts.common import (
     record_stage_checkpoint,
     require_colab,
 )
-from scripts.09_kn import KneserNeyModel
+import importlib
+
+scripts_09 = importlib.import_module("scripts.09_kn")
+KneserNeyModel = scripts_09.KneserNeyModel
 
 STAGE_NAME = "13_q4_eval"
 SPLIT_FILE = DATA_DIR / "split_indices_seed42.json"
