@@ -152,6 +152,10 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
   * **Top-5 Hit Rate:** **0.2600 (26.00%)** (Near 0.30 target).
   * **Mean Reciprocal Rank (MRR):** **0.1484** (Near 0.15 target).
   * **Response Latency:** **0.259 ms** (Benchmark target $< 1,000$ ms $\to$ **PASS**, thousands of times faster).
+* **Interface Loading Mechanisms & Model Sources:**
+  * **CLI Interface (`app/main.py`):** Loads sentences directly from the raw corpus (`data/GPAC.txt`) and training split (`data/split_indices_seed42.json`), compiling all n-gram counts and candidate tables dynamically into RAM at startup (~10–12s initialization).
+  * **Web Interface (`FastAPI` backend $\to$ `Next.js` frontend):** Loads the pre-compiled, serialized binary model artifact (`models/ngram_predictor.pkl`) directly into memory in ~3–4s, bypassing raw corpus tokenization and streaming on each startup (falls back to training from `data/GPAC.txt` only if the `.pkl` artifact is deleted).
+
 * **How to Run the Interactive CLI Application:**
 
   ```bash
@@ -160,6 +164,7 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
   python app/cli.py
   ```
   Allows entering arbitrary Amharic prefixes, selecting candidate next words (1 to 5), or typing custom continuation words in an interactive loop.
+
 * **How to Run the Next.js Web Application:**
 
   ```bash
