@@ -322,8 +322,11 @@ def main() -> None:
                 eff_ctx = ctx_hist[-(n - 1):] if n > 1 else []
 
                 # Vectorized probability calculation for candidate words
-                ctx_cols = [np.full(len(cands_arr), eff_ctx[c], dtype=np.int64) for c in range(len(eff_ctx))]
-                probs = kn_model.prob(ctx_cols, cands_arr, order=n)
+                if len(eff_ctx) > 0:
+                    ctx_mat = np.tile(np.array(eff_ctx, dtype=np.int64), (len(cands_arr), 1))
+                else:
+                    ctx_mat = np.zeros((len(cands_arr), 0), dtype=np.int64)
+                probs = kn_model.prob(ctx_mat, cands_arr, order=n)
                 p_sum = probs.sum()
                 if p_sum > 0:
                     probs /= p_sum

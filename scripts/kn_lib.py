@@ -240,6 +240,28 @@ class KneserNeyModel:
         if B == 0:
             return np.empty(0, dtype=np.float64)
 
+        # Normalize ctx to 2D int64 array of shape (B, >= order - 1)
+        if isinstance(ctx, (list, tuple)):
+            if len(ctx) == 0:
+                ctx_arr = np.zeros((B, 0), dtype=np.int64)
+            else:
+                ctx_arr = np.column_stack(ctx).astype(np.int64)
+        elif isinstance(ctx, np.ndarray):
+            if ctx.ndim == 1:
+                ctx_arr = ctx.reshape(1, -1) if len(ctx) == (order - 1) and B > 1 else ctx.reshape(-1, 1)
+                if ctx_arr.shape[0] == 1 and B > 1:
+                    ctx_arr = np.repeat(ctx_arr, B, axis=0)
+                ctx_arr = ctx_arr.astype(np.int64)
+            else:
+                ctx_arr = ctx.astype(np.int64)
+        else:
+            ctx_arr = np.asarray(ctx, dtype=np.int64)
+
+        if ctx_arr.shape[1] < order - 1:
+            pad_needed = (order - 1) - ctx_arr.shape[1]
+            pad = np.full((B, pad_needed), PAD_ID, dtype=np.int64)
+            ctx_arr = np.hstack([pad, ctx_arr])
+
         # Base order 1 probability
         in_bounds = words < len(self.p1)
         safe_words = np.where(in_bounds, words, 0)
@@ -247,7 +269,7 @@ class KneserNeyModel:
 
         for k in range(2, order + 1):
             ctx_len = k - 1
-            cols = [ctx[:, ctx.shape[1] - ctx_len + c] for c in range(ctx_len)]
+            cols = [ctx_arr[:, ctx_arr.shape[1] - ctx_len + c] for c in range(ctx_len)]
             found, g, cw = self.lookup(k, cols, words)
 
             tot = self.ctx_total[k][np.minimum(g, len(self.ctx_total[k]) - 1)]
