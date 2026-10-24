@@ -81,47 +81,62 @@ def suggest_candidates(text: str, n: int = 3, k: int = 5) -> Dict[str, Any]:
         kn = store.kn_model
         w2id = store.w2id
         id2w = store.id2w
-
         ctx_ids = [w2id.get(w, UNK_ID) for w in input_tail]
+        from scripts.kn_lib import pack
+        # Candidate generation
         candidates = set()
         model_used = 1
         is_fallback = False
 
-        # Check order continuations
         if n == 3 and len(ctx_ids) >= 2:
-            h = np.array(ctx_ids[-2:], dtype=np.int32)
-            l, r = kn._find_ngram_range(3, h)
-            if r > l:
-                candidates.update(kn.ngrams[3][l:r, 2].tolist())
+            q = pack(ctx_ids[-2:])
+            keys = kn.ctx_keys[3]
+            g = int(np.searchsorted(keys, q))
+            if g < len(keys) and keys[g] == q:
+                st = kn.ctx_start[3][g]
+                cnt = kn.ctx_n1[3][g]
+                candidates.update(kn.unique_rows[3][st : st + cnt, 2].tolist())
                 model_used = 3
 
         if len(candidates) < k and len(ctx_ids) >= 1:
-            h1 = np.array([ctx_ids[-1]], dtype=np.int32)
-            l1, r1 = kn._find_ngram_range(2, h1)
-            if r1 > l1:
-                candidates.update(kn.ngrams[2][l1:r1, 1].tolist())
+            q1 = ctx_ids[-1]
+            keys = kn.ctx_keys[2]
+            g1 = int(np.searchsorted(keys, q1))
+            if g1 < len(keys) and keys[g1] == q1:
+                st1 = kn.ctx_start[2][g1]
+                cnt1 = kn.ctx_n1[2][g1]
+                candidates.update(kn.unique_rows[2][st1 : st1 + cnt1, 1].tolist())
                 if model_used == 1:
                     model_used = 2
 
         if len(candidates) < k:
             is_fallback = True
-            top_unigrams = kn.ngrams[1][:50, 0].tolist()
-            candidates.update(top_unigrams)
+            valid_mask = kn.unique_rows[1][:, 0] >= 3
+            v_words = kn.unique_rows[1][valid_mask, 0]
+            v_counts = kn.a[1][valid_mask]
+            k_top = min(50, len(v_counts))
+            if k_top > 0:
+                top_k_idx = np.argpartition(v_counts, -k_top)[-k_top:]
+                candidates.update(v_words[top_k_idx].tolist())
 
         candidates.discard(PAD_ID)
         candidates.discard(EOS_ID)
         candidates.discard(UNK_ID)
 
-        scored = []
-        for cid in candidates:
-            p = kn.prob(cid, ctx_ids, order=n)
-            scored.append((id2w.get(cid, f"<ID:{cid}>"), float(p)))
-
-        scored.sort(key=lambda x: x[1], reverse=True)
-        suggestions = [
-            {"word": w, "probability": round(p, 4)}
-            for w, p in scored[:k]
-        ]
+        cands_arr = np.array(list(candidates), dtype=np.int32)
+        if len(cands_arr) > 0:
+            eff_ctx = ctx_ids[-(n - 1):] if n > 1 else []
+            ctx_cols = [np.full(len(cands_arr), eff_ctx[c], dtype=np.int64) for c in range(len(eff_ctx))]
+            probs = kn.prob(ctx_cols, cands_arr, order=n)
+            sort_order = np.lexsort((cands_arr, -probs))
+            top_cands = cands_arr[sort_order[:k]]
+            top_probs = probs[sort_order[:k]]
+            suggestions = [
+                {"word": id2w.get(cid, f"<ID:{cid}>"), "probability": round(float(p), 4)}
+                for cid, p in zip(top_cands, top_probs)
+            ]
+        else:
+            suggestions = []
         strategy = f"kneser_ney_order_{model_used}" + ("_fallback" if is_fallback else "")
         latency_ms = (time.perf_counter() - t_start) * 1000.0
 

@@ -14,13 +14,12 @@ from scripts.common import (
     SENTENCE_SPLIT_REGEX,
     WORD_RE,
 )
-import importlib
-
-scripts_05 = importlib.import_module("scripts.05_profile_counts")
-build_ngram_matrix = scripts_05.build_ngram_matrix
-compute_pos_in_sent = scripts_05.compute_pos_in_sent
-count_ngrams_direct = scripts_05.count_ngrams_direct
-count_ngrams_partitioned = scripts_05.count_ngrams_partitioned
+from scripts.ngram_lib import (
+    context_matrix as build_ngram_matrix,
+    sentence_positions as compute_pos_in_sent,
+    group_rows as count_ngrams_direct,
+    group_rows_partitioned as count_ngrams_partitioned,
+)
 
 
 def test_sentence_split_and_word_regex():
@@ -103,12 +102,11 @@ def test_count_ngrams_direct_vs_partitioned():
 
 
 def test_kneser_ney_model():
-    scripts_09 = importlib.import_module("scripts.09_kn")
-    KneserNeyModel = scripts_09.KneserNeyModel
+    from scripts.kn_lib import KneserNeyModel
 
     # Toy counts:
     # Unigrams: 3, 4, 5
-    # Bigrams: (3, 4), (4, 5), (3, 5)
+    # Bigrams: (3, 4), (3, 5), (4, 5)
     ngrams = {
         1: np.array([[3], [4], [5]], dtype=np.int32),
         2: np.array([[3, 4], [3, 5], [4, 5]], dtype=np.int32),
@@ -118,14 +116,16 @@ def test_kneser_ney_model():
         2: np.array([1, 1, 2], dtype=np.int64),
     }
 
-    model = KneserNeyModel(ngrams, counts, max_order=2)
+    model = KneserNeyModel.build_from_counts(ngrams, counts, max_order=2, vocab_size=10)
     # Check discount
-    assert 0.0 < model.discounts[2] < 1.0
+    assert 0.0 < model.D[2] < 1.0
 
     # Probability of word 4 given context [3]
-    p_seen = model.prob(4, [3], order=2)
+    p_seen = model.prob(np.array([[3]]), np.array([4]), order=2)[0]
     assert 0.0 < p_seen < 1.0
 
-    # Sentence logprob
-    logp = model.sentence_logprob([3, 4, 1], order=2)
-    assert logp < 0.0
+    # Sequence score
+    tokens = np.array([3, 4, 1], dtype=np.int32)
+    starts = np.array([0], dtype=np.int64)
+    logp_pos, sent_logp, per_tok = model.score_sequence(tokens, starts, order=2)
+    assert sent_logp[0] < 0.0

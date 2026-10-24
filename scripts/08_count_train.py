@@ -1,16 +1,17 @@
 """scripts/08_count_train.py: Q2 Step 2.
 
-Builds training-split vocabulary and n-gram counts:
-- Maps singleton words in training set to <UNK>
-- Produces data/counts/train_seed42/vocab_train.tsv
-- Produces data/counts/train_seed42/order{n}_ngrams.npy and order{n}_counts.npy (n=1 to 4)
+Builds training-split vocabulary, lookup table (LUT), and n-gram counts for Q2, Q3, and Q4.
+Supports --seed 42 and --seed 7 over the train_core partition (D2, D4).
+Produces:
+- data/counts/train_seed{seed}/vocab_train.tsv (preserving original global IDs, D8)
+- data/counts/train_seed{seed}/lut_train_seed{seed}.npy (int32 array mapping <=1 to UNK_ID)
+- data/counts/train_seed{seed}/order{n}_ngrams.npy and order{n}_counts.npy (n=1 to 4)
 """
 
 from __future__ import annotations
 
-from collections import Counter
+import argparse
 import gc
-import importlib
 import json
 import sys
 import time
@@ -26,69 +27,87 @@ from scripts.common import (
     EOS_TOKEN,
     PAD_ID,
     PAD_TOKEN,
-    TRAIN_COUNTS_DIR,
     UNK_ID,
     UNK_TOKEN,
+    V_LIMIT,
     get_peak_memory_mb,
-    is_checkpoint_done,
-    record_stage_checkpoint,
-    require_colab,
+    memory_budget_mb,
+    require_heavy_runtime,
+    stage_is_done,
+    record_stage,
+)
+from scripts.ngram_lib import (
+    context_matrix,
+    group_rows,
+    group_rows_partitioned,
+    sentence_positions,
+    use_partition,
 )
 
-scripts_05 = importlib.import_module("scripts.05_profile_counts")
-build_ngram_matrix = scripts_05.build_ngram_matrix
-compute_pos_in_sent = scripts_05.compute_pos_in_sent
-count_ngrams_direct = scripts_05.count_ngrams_direct
-count_ngrams_partitioned = scripts_05.count_ngrams_partitioned
-
-STAGE_NAME = "08_count_train"
 TOKENS_FILE = DATA_DIR / "tokens.npy"
 STARTS_FILE = DATA_DIR / "sentence_starts.npy"
-SPLIT_FILE = DATA_DIR / "split_indices_seed42.json"
 VOCAB_FULL_FILE = DATA_DIR / "vocab.tsv"
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build training-split counts and LUT.")
+    parser.add_argument("--seed", type=int, choices=[42, 7], default=42, help="Split seed (42 or 7)")
+    return parser.parse_args()
+
+
 def main() -> None:
-    require_colab(STAGE_NAME)
+    args = parse_args()
+    seed = args.seed
+    stage_name = f"08_count_train_seed{seed}"
+    require_heavy_runtime(stage_name)
 
-    expected_files = [TRAIN_COUNTS_DIR / "vocab_train.tsv"]
+    target_dir = DATA_DIR / "counts" / f"train_seed{seed}"
+    split_file = DATA_DIR / f"split_indices_seed{seed}_v2.json"
+    lut_file = target_dir / f"lut_train_seed{seed}.npy"
+    vocab_train_file = target_dir / "vocab_train.tsv"
+
+    expected_files = [lut_file, vocab_train_file]
     for n in range(1, 5):
-        expected_files.append(TRAIN_COUNTS_DIR / f"order{n}_ngrams.npy")
-        expected_files.append(TRAIN_COUNTS_DIR / f"order{n}_counts.npy")
+        expected_files.append(target_dir / f"order{n}_ngrams.npy")
+        expected_files.append(target_dir / f"order{n}_counts.npy")
 
-    if is_checkpoint_done(STAGE_NAME, expected_files):
+    inputs = [TOKENS_FILE, STARTS_FILE, split_file, VOCAB_FULL_FILE]
+    if stage_is_done(stage_name, inputs, expected_files):
         return
 
-    if not TOKENS_FILE.exists() or not STARTS_FILE.exists() or not SPLIT_FILE.exists():
-        print(f"[ERROR] Required inputs not found ({TOKENS_FILE}, {STARTS_FILE}, {SPLIT_FILE})")
+    if not TOKENS_FILE.exists() or not STARTS_FILE.exists() or not split_file.exists():
+        print(f"[ERROR] Required inputs not found ({TOKENS_FILE}, {STARTS_FILE}, {split_file})")
         sys.exit(1)
 
-    print(f"--- Starting Stage: {STAGE_NAME} ---")
+    print(f"--- Starting Stage: {stage_name} (Seed {seed}) ---")
+    budget_mb = memory_budget_mb()
+    print(f"Operational Memory Budget: {budget_mb:.1f} MB")
     start_time = time.time()
-    TRAIN_COUNTS_DIR.mkdir(parents=True, exist_ok=True)
+    target_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Loading data split and sentence starts...")
-    with open(SPLIT_FILE, "r", encoding="utf-8") as f:
+    print(f"Loading split partition from {split_file.name}...")
+    with open(split_file, "r", encoding="utf-8") as f:
         split_data = json.load(f)
-    train_indices = np.array(split_data["train"], dtype=np.int64)
+    train_indices = np.array(split_data["train_core"], dtype=np.int64)
 
+    print(f"Loading tokens and sentence starts...")
     tokens = np.load(TOKENS_FILE)
     starts = np.load(STARTS_FILE)
     n_sentences = len(starts)
 
+    # Compute sentence lengths vectorized (item 8-4)
     ends = np.empty(n_sentences, dtype=np.int64)
     ends[:-1] = starts[1:]
     ends[-1] = len(tokens)
 
-    # Calculate total training tokens
     train_lengths = ends[train_indices] - starts[train_indices]
     total_train_tokens = int(train_lengths.sum())
     n_train_sents = len(train_indices)
 
-    print(f"Training split: {n_train_sents:,} sentences, {total_train_tokens:,} tokens (including EOS).")
+    print(f"train_core partition: {n_train_sents:,} sentences, {total_train_tokens:,} tokens (including EOS).")
 
-    # Assemble contiguous train_tokens array and train_starts array
-    print("Extracting training token sequence...")
+    # Extract train_tokens sequence
+    print("Extracting train_core token sequence...")
     train_tokens = np.empty(total_train_tokens, dtype=np.int32)
     train_starts = np.empty(n_train_sents, dtype=np.int64)
 
@@ -101,96 +120,117 @@ def main() -> None:
         curr_dst += s_len
 
     assert curr_dst == total_train_tokens
-
-    # Free full tokens and starts from memory
     del tokens, starts, ends, train_indices, train_lengths
     gc.collect()
 
-    # Pass 1: Count word frequencies in train_tokens
-    print("Counting training word frequencies to identify singletons...")
-    train_counts = Counter()
-    for token_id in train_tokens:
-        if token_id >= 3:
-            train_counts[token_id] += 1
+    # Pass 1: Vectorized bincount to identify singletons (item 8-1)
+    print("Computing word frequencies via np.bincount...")
+    count_train = np.bincount(train_tokens, minlength=V_LIMIT)
 
-    singletons = {t_id for t_id, cnt in train_counts.items() if cnt == 1}
-    print(f"Total vocabulary seen in train: {len(train_counts):,}")
-    print(f"Singletons (frequency == 1) mapped to <UNK>: {len(singletons):,}")
+    # Build Lookup Table (LUT, item 8-2)
+    print(f"Constructing Lookup Table (LUT) of size {V_LIMIT:,}...")
+    lut = np.full(V_LIMIT, UNK_ID, dtype=np.int32)
+    non_singletons = np.flatnonzero(count_train > 1)
+    lut[non_singletons] = non_singletons.astype(np.int32)
 
-    # Map singletons to UNK_ID in train_tokens
-    print("Remapping singletons to <UNK> in train_tokens...")
-    if singletons:
-        # Create lookup table for fast vector remap
-        max_id = max(train_counts.keys())
-        remap_lut = np.arange(max_id + 1, dtype=np.int32)
-        for s_id in singletons:
-            remap_lut[s_id] = UNK_ID
-        train_tokens = remap_lut[train_tokens]
-        del remap_lut
-        gc.collect()
+    lut[PAD_ID] = PAD_ID
+    lut[EOS_ID] = EOS_ID
+    lut[UNK_ID] = UNK_ID
 
-    # Rebuild vocab_train.tsv
-    print("Writing data/counts/train_seed42/vocab_train.tsv...")
-    # Load original word mappings from full vocab.tsv
-    id_to_word = {}
+    # Save LUT
+    tmp_lut = lut_file.with_suffix(".npy.tmp")
+    np.save(tmp_lut, lut)
+    tmp_lut.replace(lut_file)
+    print(f"Saved {lut_file.name}")
+
+    # Map singletons in train_tokens using LUT
+    print("Applying LUT to train_tokens...")
+    train_tokens = lut[train_tokens]
+
+    # Write vocab_train.tsv preserving original global IDs (item 8-3)
+    print("Writing vocab_train.tsv with preserved global IDs...")
+    id_to_word: dict[int, str] = {}
     with open(VOCAB_FULL_FILE, "r", encoding="utf-8") as f:
-        header = f.readline()
+        f.readline()  # header
         for line in f:
             parts = line.strip().split("\t")
             if len(parts) >= 2:
                 id_to_word[int(parts[0])] = parts[1]
 
-    train_vocab_file = TRAIN_COUNTS_DIR / "vocab_train.tsv"
-    tmp_vocab = train_vocab_file.with_suffix(".tsv.tmp")
+    tmp_vocab = vocab_train_file.with_suffix(".tsv.tmp")
     with open(tmp_vocab, "w", encoding="utf-8", newline="\n") as f:
         f.write("id\tword\tfrequency\n")
         f.write(f"{PAD_ID}\t{PAD_TOKEN}\t0\n")
         f.write(f"{EOS_ID}\t{EOS_TOKEN}\t{n_train_sents}\n")
-        # Count total UNK in train_tokens
-        unk_total = len(singletons)
-        f.write(f"{UNK_ID}\t{UNK_TOKEN}\t{unk_total}\n")
+        unk_count = int(np.count_nonzero(train_tokens == UNK_ID))
+        f.write(f"{UNK_ID}\t{UNK_TOKEN}\t{unk_count}\n")
 
-        # Non-singletons
-        kept_words = [(id_to_word[t_id], cnt) for t_id, cnt in train_counts.items() if cnt > 1]
-        kept_words.sort(key=lambda x: x[1], reverse=True)
-        for rank, (w, cnt) in enumerate(kept_words, start=3):
-            f.write(f"{rank}\t{w}\t{cnt}\n")
+        valid_words = [w_id for w_id in non_singletons if w_id >= 3]
+        valid_words.sort(key=lambda w: count_train[w], reverse=True)
+        for w_id in valid_words:
+            w_str = id_to_word.get(w_id, f"<ID_{w_id}>")
+            f.write(f"{w_id}\t{w_str}\t{count_train[w_id]}\n")
 
-    tmp_vocab.replace(train_vocab_file)
-    print(f"Saved {train_vocab_file} ({len(kept_words) + 3:,} words).")
-    del train_counts, singletons, id_to_word
+    tmp_vocab.replace(vocab_train_file)
+    print(f"Saved {vocab_train_file.name} ({len(valid_words) + 3:,} vocabulary entries)")
+    del count_train, non_singletons, valid_words, id_to_word
     gc.collect()
 
-    # Vectorized counting for training split
-    print("\nComputing training token sentence positions...")
-    train_pos_in_sent = compute_pos_in_sent(len(train_tokens), train_starts)
+    # Vectorized counting for orders 1 to 4 with upfront partitioning & per-order checkpoints
+    print("\nComputing sentence positions for train_tokens...")
+    pos_in_sent = sentence_positions(train_starts, total_train_tokens)
     del train_starts
     gc.collect()
 
     for n in range(1, 5):
-        t0 = time.time()
-        print(f"\nBuilding training counts for order n = {n}...")
-        matrix = build_ngram_matrix(train_tokens, train_pos_in_sent, n)
+        order_stage = f"{stage_name}_order{n}"
+        ngrams_file = target_dir / f"order{n}_ngrams.npy"
+        counts_file = target_dir / f"order{n}_counts.npy"
+        order_outputs = [ngrams_file, counts_file]
 
-        unique_ngrams, counts = count_ngrams_direct(matrix)
+        if stage_is_done(order_stage, inputs, order_outputs):
+            print(f"Order n={n} verified complete. Skipping.")
+            continue
+
+        t0 = time.time()
+        print(f"\nCounting training order n = {n}...")
+        matrix = context_matrix(train_tokens, pos_in_sent, n)
+
+        cur_mem = get_peak_memory_mb()
+        partitioned = use_partition(total_train_tokens, n, budget_mb, current_usage_mb=cur_mem)
+
+        if partitioned:
+            print(f"  Estimated memory exceeds budget ({budget_mb:.1f} MB) -> Using group_rows_partitioned(parts=4)...")
+            unique_ngrams, counts = group_rows_partitioned(matrix, parts=4)
+        else:
+            print(f"  Direct lexsort group_rows fits within budget ({budget_mb:.1f} MB)...")
+            unique_ngrams, counts = group_rows(matrix)
+
         del matrix
         gc.collect()
 
-        ngrams_file = TRAIN_COUNTS_DIR / f"order{n}_ngrams.npy"
-        counts_file = TRAIN_COUNTS_DIR / f"order{n}_counts.npy"
+        assert counts.sum() == total_train_tokens, f"Order {n} sum mismatch: {counts.sum()} != {total_train_tokens}"
 
-        print(f"  Saving {ngrams_file.name} (shape {unique_ngrams.shape}) and {counts_file.name}...")
-        np.save(ngrams_file, unique_ngrams)
-        np.save(counts_file, counts)
+        tmp_ngrams = ngrams_file.with_suffix(".npy.tmp")
+        tmp_counts = counts_file.with_suffix(".npy.tmp")
+        np.save(tmp_ngrams, unique_ngrams)
+        np.save(tmp_counts, counts)
+        tmp_ngrams.replace(ngrams_file)
+        tmp_counts.replace(counts_file)
 
-        elapsed_n = time.time() - t0
-        print(f"  Finished order {n}: {len(unique_ngrams):,} unique, {counts.sum():,} tokens in {elapsed_n:.2f} s")
+        elapsed_n = round(time.time() - t0, 2)
+        print(
+            f"  Finished order {n}: {len(unique_ngrams):,} distinct n-grams, "
+            f"{counts.sum():,} tokens in {elapsed_n} s"
+        )
+
+        record_stage(order_stage, inputs, order_outputs)
         del unique_ngrams, counts
         gc.collect()
 
     elapsed = time.time() - start_time
-    print(f"\n[SUCCESS] Stage {STAGE_NAME} completed in {elapsed:.2f} s")
-    record_stage_checkpoint(STAGE_NAME, expected_files)
+    print(f"\n[SUCCESS] Stage {stage_name} completed in {elapsed:.2f} s")
+    record_stage(stage_name, inputs, expected_files)
 
 
 if __name__ == "__main__":

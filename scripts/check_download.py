@@ -70,6 +70,18 @@ def main() -> None:
         print("\n[FAIL] Artifact verification failed. Do NOT run notebooks or application until resolved.")
         sys.exit(1)
 
+    raw_corpus = REPO_ROOT / "data" / "GPAC.txt"
+    if raw_corpus.exists():
+        raw_hash = compute_sha256(raw_corpus)
+        expected_raw = "977706859188f7598ca97a29d7203d86926c11ede591fba31915c74ae9eabcfa"
+        print(f"\nRaw corpus GPAC.txt SHA-256: {raw_hash}")
+        if raw_hash == expected_raw:
+            print("  [OK] Matches authoritative raw corpus hash.")
+        else:
+            print(f"  [WARN] Differs from authoritative hash ({expected_raw})")
+    else:
+        print("\n[INFO] data/GPAC.txt not present on local PC (heavy file kept on Kaggle/Colab per AGENTS B13).")
+
     print("\n[SUCCESS] All artifact checksums match perfectly! Ready for local PC notebooks and app.")
     sys.exit(0)
 
