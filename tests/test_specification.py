@@ -439,7 +439,9 @@ def test_manifest_inputs(tmp_path: Path):
     inp.write_text("initial input", encoding="utf-8")
     out.write_text("initial output", encoding="utf-8")
 
-    with patch("scripts.common.MANIFEST_FILE", manifest_f):
+    checksums_f = tmp_path / "checksums.json"
+
+    with patch("scripts.common.MANIFEST_FILE", manifest_f), patch("scripts.common.CHECKSUMS_FILE", checksums_f):
         record_stage("stage_test", [inp], [out])
         assert stage_is_done("stage_test", [inp], [out]) is True
 
