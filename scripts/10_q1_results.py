@@ -340,7 +340,7 @@ def main() -> None:
                 context.append(next_word)
 
             gen_text = " ".join(gen_words) + "።"
-            h_gen = int(hashlib.blake2b(gen_text.encode("utf-8"), digest_size=8).hexdigest(), 16)
+            h_gen = int.from_bytes(hashlib.blake2b(gen_text.strip().encode("utf-8"), digest_size=8).digest(), "little")
             idx = np.searchsorted(sorted_corpus_hashes, h_gen)
             is_full_copy = bool(idx < len(sorted_corpus_hashes) and sorted_corpus_hashes[idx] == h_gen)
 

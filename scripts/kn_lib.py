@@ -9,6 +9,8 @@ from __future__ import annotations
 import numpy as np
 from scripts.ngram_lib import group_rows, sentence_positions, context_matrix
 
+from pathlib import Path
+
 # Global vocabulary limit for 64-bit integer packing: 2^21 = 2,097,152
 V_LIMIT = 1 << 21
 PAD_ID = 0
@@ -41,8 +43,14 @@ def pack(cols: list[np.ndarray] | np.ndarray) -> np.ndarray:
 class KneserNeyModel:
     """Vectorized Interpolated Kneser-Ney Language Model."""
 
-    def __init__(self) -> None:
-        self.max_order: int = 1
+    def __init__(
+        self,
+        raw_unique_rows: dict[int, np.ndarray] | None = None,
+        raw_counts: dict[int, np.ndarray] | None = None,
+        max_order: int = 4,
+        vocab_size: int = V_LIMIT,
+    ) -> None:
+        self.max_order: int = max_order
         self.D: dict[int, float] = {}
         self.a: dict[int, np.ndarray] = {}
         self.unique_rows: dict[int, np.ndarray] = {}
@@ -54,6 +62,9 @@ class KneserNeyModel:
         self.p1: np.ndarray = np.empty(0, dtype=np.float64)
         self.top50_unigrams: np.ndarray = np.empty(0, dtype=np.int32)
 
+        if raw_unique_rows is not None and raw_counts is not None:
+            self._build_from_counts(raw_unique_rows, raw_counts, max_order=max_order, vocab_size=vocab_size)
+
     @classmethod
     def build_from_counts(
         cls,
@@ -62,49 +73,77 @@ class KneserNeyModel:
         max_order: int = 4,
         vocab_size: int = V_LIMIT,
     ) -> KneserNeyModel:
+        return cls(raw_unique_rows, raw_counts, max_order=max_order, vocab_size=vocab_size)
+
+    @classmethod
+    def load_from_dir(
+        cls,
+        directory: Path | str,
+        max_order: int = 4,
+        mmap_mode: str | None = None,
+        vocab_size: int = V_LIMIT,
+    ) -> KneserNeyModel:
+        p = Path(directory)
+        raw_unique: dict[int, np.ndarray] = {}
+        raw_counts: dict[int, np.ndarray] = {}
+        for n in range(1, max_order + 1):
+            ngrams_path = p / f"order{n}_ngrams.npy"
+            counts_path = p / f"order{n}_counts.npy"
+            if not ngrams_path.exists() or not counts_path.exists():
+                raise FileNotFoundError(f"Missing count files in {directory}: {ngrams_path} or {counts_path}")
+            raw_unique[n] = np.load(ngrams_path, mmap_mode=mmap_mode)
+            raw_counts[n] = np.load(counts_path, mmap_mode=mmap_mode)
+        return cls(raw_unique, raw_counts, max_order=max_order, vocab_size=vocab_size)
+
+    def _build_from_counts(
+        self,
+        raw_unique_rows: dict[int, np.ndarray],
+        raw_counts: dict[int, np.ndarray],
+        max_order: int = 4,
+        vocab_size: int = V_LIMIT,
+    ) -> None:
         """Construct the Kneser-Ney model from raw counts for orders 1 to max_order.
 
         Lower orders use continuation counts derived from unique higher-order rows.
         Order max_order uses raw counts.
         """
-        model = cls()
-        model.max_order = max_order
+        self.max_order = max_order
 
         # 1. Build count tables a_k and unique_rows_k
         # For k == max_order: raw counts
-        model.unique_rows[max_order] = raw_unique_rows[max_order]
-        model.a[max_order] = raw_counts[max_order].astype(np.float64)
+        self.unique_rows[max_order] = raw_unique_rows[max_order]
+        self.a[max_order] = raw_counts[max_order].astype(np.float64)
 
         # For k < max_order downward: continuation counts N1+(· h w)
         for k in range(max_order - 1, 0, -1):
-            higher_unique = model.unique_rows[k + 1]
+            higher_unique = self.unique_rows[k + 1]
             # Strip the leading word of the higher-order unique rows
             lower_patterns = higher_unique[:, 1:]
             u_rows, cont_counts = group_rows(lower_patterns)
-            model.unique_rows[k] = u_rows
-            model.a[k] = cont_counts.astype(np.float64)
+            self.unique_rows[k] = u_rows
+            self.a[k] = cont_counts.astype(np.float64)
 
         # 2. Compute discounts D_k = n1 / (n1 + 2 * n2)
         for k in range(1, max_order + 1):
-            ak = model.a[k]
+            ak = self.a[k]
             n1 = np.count_nonzero(ak == 1.0)
             n2 = np.count_nonzero(ak == 2.0)
             if (n1 + 2 * n2) > 0:
-                model.D[k] = float(n1 / (n1 + 2.0 * n2))
+                self.D[k] = float(n1 / (n1 + 2.0 * n2))
             else:
-                model.D[k] = 0.75
+                self.D[k] = 0.75
 
         # 3. Context groups for orders k >= 2
         for k in range(2, max_order + 1):
-            rows = model.unique_rows[k]
-            ak = model.a[k]
+            rows = self.unique_rows[k]
+            ak = self.a[k]
             n_rows = len(rows)
             if n_rows == 0:
-                model.ctx_keys[k] = np.empty(0, dtype=np.int64)
-                model.ctx_start[k] = np.empty(0, dtype=np.int64)
-                model.ctx_n1[k] = np.empty(0, dtype=np.int64)
-                model.ctx_total[k] = np.empty(0, dtype=np.float64)
-                model.pair_keys[k] = np.empty(0, dtype=np.int64)
+                self.ctx_keys[k] = np.empty(0, dtype=np.int64)
+                self.ctx_start[k] = np.empty(0, dtype=np.int64)
+                self.ctx_n1[k] = np.empty(0, dtype=np.int64)
+                self.ctx_total[k] = np.empty(0, dtype=np.float64)
+                self.pair_keys[k] = np.empty(0, dtype=np.int64)
                 continue
 
             # Context is first k-1 columns
@@ -115,26 +154,26 @@ class KneserNeyModel:
             new_ctx[1:] = row_keys[1:] != row_keys[:-1]
             starts = np.flatnonzero(new_ctx)
 
-            model.ctx_start[k] = starts
-            model.ctx_keys[k] = row_keys[starts]
-            model.ctx_n1[k] = np.diff(np.append(starts, n_rows)).astype(np.int64)
-            model.ctx_total[k] = np.add.reduceat(ak, starts)
+            self.ctx_start[k] = starts
+            self.ctx_keys[k] = row_keys[starts]
+            self.ctx_n1[k] = np.diff(np.append(starts, n_rows)).astype(np.int64)
+            self.ctx_total[k] = np.add.reduceat(ak, starts)
 
-            group_idx = np.repeat(np.arange(len(starts), dtype=np.int64), model.ctx_n1[k])
-            model.pair_keys[k] = group_idx * V_LIMIT + rows[:, -1].astype(np.int64)
+            group_idx = np.repeat(np.arange(len(starts), dtype=np.int64), self.ctx_n1[k])
+            self.pair_keys[k] = group_idx * V_LIMIT + rows[:, -1].astype(np.int64)
 
         # 4. Unigram base probability array
-        a1 = model.a[1]
-        u1 = model.unique_rows[1]
+        a1 = self.a[1]
+        u1 = self.unique_rows[1]
         p1_size = max(int(np.max(u1[:, 0])) + 1 if len(u1) > 0 else 0, vocab_size)
-        model.p1 = np.zeros(p1_size, dtype=np.float64)
+        self.p1 = np.zeros(p1_size, dtype=np.float64)
 
         total_a1 = a1.sum()
         if total_a1 > 0 and len(u1) > 0:
             words = u1[:, 0]
-            model.p1[words] = a1 / total_a1
+            self.p1[words] = a1 / total_a1
             # Assert all observed words have positive probability
-            assert np.all(model.p1[words] > 0), "Observed tokens in order 1 must have p1 > 0"
+            assert np.all(self.p1[words] > 0), "Observed tokens in order 1 must have p1 > 0"
 
         # 5. Precompute top-50 unigrams by continuation count (excluding PAD, EOS, UNK)
         if len(u1) > 0:
@@ -145,9 +184,7 @@ class KneserNeyModel:
             if k_top > 0:
                 top_part = np.argpartition(-valid_counts, k_top - 1)[:k_top]
                 top_sorted = top_part[np.argsort(-valid_counts[top_part])]
-                model.top50_unigrams = valid_words[top_sorted]
-
-        return model
+                self.top50_unigrams = valid_words[top_sorted]
 
     def lookup(
         self,
