@@ -303,7 +303,13 @@ class KneserNeyModel:
         if N == 0:
             return np.empty(0), np.empty(0), np.empty(0)
 
-        pos = sentence_positions(starts, N)
+        if len(starts) == N:
+            pos = starts
+            real_starts = np.flatnonzero(pos == 0)
+        else:
+            real_starts = starts
+            pos = sentence_positions(real_starts, N)
+
         M = context_matrix(tokens, pos, order)
         if order > 1:
             ctx = M[:, :-1]
@@ -316,10 +322,14 @@ class KneserNeyModel:
         probs = np.maximum(probs, 1e-12)
         logp = np.log(probs)
 
-        lengths = np.diff(np.append(starts, N))
-        sentence_ids = np.repeat(np.arange(len(starts), dtype=np.int64), lengths)
-        sentence_logp = np.bincount(sentence_ids, weights=logp, minlength=len(starts))
-        sentence_per_token_logp = sentence_logp / np.maximum(lengths, 1)
+        if len(real_starts) > 0:
+            lengths = np.diff(np.append(real_starts, N))
+            sentence_ids = np.repeat(np.arange(len(real_starts), dtype=np.int64), lengths)
+            sentence_logp = np.bincount(sentence_ids, weights=logp, minlength=len(real_starts))
+            sentence_per_token_logp = sentence_logp / np.maximum(lengths, 1)
+        else:
+            sentence_logp = np.array([logp.sum()], dtype=np.float64)
+            sentence_per_token_logp = sentence_logp / max(N, 1)
 
         return logp, sentence_logp, sentence_per_token_logp
 
