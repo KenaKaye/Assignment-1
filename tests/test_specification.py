@@ -420,7 +420,7 @@ def test_budget():
     # 2. Unlimited cgroup, physical RAM 16 GiB
     # budget = 16384 * 0.90 - 1024 = 14745.6 - 1024 = 13721.6
     with patch.dict(os.environ, {}, clear=True):
-        with patch("pathlib.Path.exists", return_value=False):
+        with patch.object(Path, "exists", return_value=False), patch.object(Path, "read_text", return_value="max"):
             with patch("os.sysconf", create=True, side_effect=[16 * 1024 * 1024 // 4, 4096]):
                 budget = memory_budget_mb()
                 expected = 16384.0 * 0.90 - 1024.0

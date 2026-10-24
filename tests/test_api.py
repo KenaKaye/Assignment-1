@@ -6,7 +6,9 @@ Course: Natural Language Processing | Assignment 1 (Q4)
 import sys
 import os
 import pytest
-from fastapi.testclient import TestClient
+
+pytest.importorskip("fastapi")
+pytest.importorskip("httpx")
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT_DIR not in sys.path:
@@ -14,6 +16,7 @@ if ROOT_DIR not in sys.path:
 if os.path.join(ROOT_DIR, "app") not in sys.path:
     sys.path.insert(0, os.path.join(ROOT_DIR, "app"))
 
+from fastapi.testclient import TestClient
 from api import app
 from predictor import get_predictor, suggest_candidates
 

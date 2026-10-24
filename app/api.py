@@ -68,10 +68,12 @@ class ErrorResponse(BaseModel):
 def health_check():
     """Health check endpoint confirming API status and model readiness."""
     predictor = get_predictor()
+    v_size = getattr(predictor, "vocab_size", getattr(predictor, "V", 0))
+    is_ready = getattr(predictor, "is_ready", True)
     return {
         "status": "ok",
-        "model_ready": predictor.is_ready,
-        "vocab_size": predictor.V
+        "model_ready": is_ready,
+        "vocab_size": v_size
     }
 
 
