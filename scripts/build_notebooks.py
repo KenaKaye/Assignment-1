@@ -127,28 +127,48 @@ REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
 
     cells.append(md_cell("The commit hash printed above represents the exact code version executing this build run. Record this commit hash in `README.md`."))
 
-    # Cell 5: Attach and verify raw corpus from Kaggle dataset
-    cells.append(code_cell("""import os, shutil, glob, hashlib
+    # Cell 5: Attach and verify raw corpus from Kaggle dataset (supports GPAC.txt.gz and GPAC.txt)
+    cells.append(code_cell("""import gzip, shutil, glob, hashlib, os
 
 # Start from a directory that always exists, then enter the repository.
 os.chdir("/kaggle/working")
 os.chdir("/kaggle/working/NLP_Assignment1")
 os.makedirs("data", exist_ok=True)
 
-# Use the Kaggle dataset you attached (Datasets -> New Dataset -> GPAC.txt). No Google Drive call.
-candidates = glob.glob("/kaggle/input/*/GPAC.txt")
-if not candidates:
-    raise SystemExit("GPAC.txt not found under /kaggle/input. Attach the dataset first.")
-shutil.copy(candidates[0], "data/GPAC.txt")
+DST = "data/GPAC.txt"
+
+# Find attached dataset (supports both compressed GPAC.txt.gz and uncompressed GPAC.txt)
+gz_candidates = glob.glob("/kaggle/input/*/GPAC.txt.gz")
+txt_candidates = glob.glob("/kaggle/input/*/GPAC.txt")
+
+if gz_candidates:
+    src_path = gz_candidates[0]
+    print(f"Decompressing {src_path} -> {DST}...")
+    with gzip.open(src_path, "rb") as src, open(DST, "wb") as dst:
+        shutil.copyfileobj(src, dst)
+elif txt_candidates:
+    src_path = txt_candidates[0]
+    print(f"Copying {src_path} -> {DST}...")
+    shutil.copy(src_path, DST)
+else:
+    raise SystemExit("Neither GPAC.txt.gz nor GPAC.txt found under /kaggle/input. Please attach the dataset first.")
 
 h = hashlib.sha256()
-with open("data/GPAC.txt", "rb") as f:
+with open(DST, "rb") as f:
     for chunk in iter(lambda: f.read(1 << 20), b""):
         h.update(chunk)
 
+actual_hash = h.hexdigest()
 EXPECTED = "977706859188f7598ca97a29d7203d86926c11ede591fba31915c74ae9eabcfa"
-assert h.hexdigest() == EXPECTED, f"Raw corpus hash mismatch: {h.hexdigest()} vs {EXPECTED}"
-print("GPAC.txt SHA-256 matches:", h.hexdigest())"""))
+if actual_hash != EXPECTED:
+    print("----------------------------------------------------------------------")
+    print(f"ACTUAL HASH: {actual_hash}")
+    print(f"EXPECTED:    {EXPECTED}")
+    print("The attached file does not match the authoritative corpus hash.")
+    print("----------------------------------------------------------------------")
+
+assert actual_hash == EXPECTED, f"Raw corpus hash mismatch: {actual_hash}"
+print("GPAC.txt SHA-256 matches:", actual_hash)"""))
 
     cells.append(md_cell("The raw corpus hash strictly matches the authoritative value recorded in the implementation plan. Step 0 raw data verification passes. (Note: if the attached dataset is a different version, the hash will not match and the assertion will catch it)."))
 
@@ -463,55 +483,53 @@ REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
 
     cells.append(md_cell("Record the commit printed here in `README.md`."))
 
-    # Cell 5: Fetch or copy raw corpus and verify
-    cells.append(code_cell("""import os, shutil, glob, hashlib
+    # Cell 5a: Connect Google Drive
+    cells.append(code_cell("""from google.colab import drive
+drive.mount('/content/drive')"""))
 
-# Ensure we are in the repository directory
+    cells.append(md_cell("Run the cell above to connect your Google Drive containing `GPAC.txt.gz`."))
+
+    # Cell 5b: Copy, decompress, and verify hash
+    cells.append(code_cell("""import gzip, shutil, hashlib, os, glob
+
+# Start from a directory that always exists, then enter the repository
 os.chdir("/content")
 os.chdir("/content/NLP_Assignment1")
-os.makedirs("data", exist_ok=True)
 
-target_file = "data/GPAC.txt"
+SRC = "/content/drive/MyDrive/GPAC.txt.gz"
+if not os.path.exists(SRC):
+    candidates = glob.glob("/content/drive/*/**/GPAC.txt.gz", recursive=True) + glob.glob("/content/GPAC.txt.gz")
+    if candidates:
+        SRC = candidates[0]
+        print(f"Found GPAC.txt.gz at {SRC}")
+    else:
+        raise SystemExit("GPAC.txt.gz not found at /content/drive/MyDrive/GPAC.txt.gz. Please check Drive path.")
 
-# 1. Check if user mounted Google Drive or uploaded directly to /content
-content_candidates = glob.glob("/content/GPAC.txt")
-drive_candidates = glob.glob("/content/drive/*/**/GPAC.txt", recursive=True)
-all_candidates = content_candidates + drive_candidates
+DST = "/content/NLP_Assignment1/data/GPAC.txt"
+os.makedirs(os.path.dirname(DST), exist_ok=True)
 
-if all_candidates and not os.path.exists(target_file):
-    print(f"Found GPAC.txt at {all_candidates[0]}. Copying to data/GPAC.txt...")
-    shutil.copy(all_candidates[0], target_file)
+print(f"Decompressing {SRC} -> {DST}...")
+with gzip.open(SRC, "rb") as src, open(DST, "wb") as dst:
+    shutil.copyfileobj(src, dst)
 
-# 2. If not found locally, attempt gdown
-if not os.path.exists(target_file) or os.path.getsize(target_file) == 0:
-    print("Attempting download via gdown...")
-    !gdown 1jEOAORylTBAiNKes_JerD6gFF7cnLFyr -O data/GPAC.txt
-
-# 3. If still missing, explain how to mount Drive or upload
-if not os.path.exists(target_file) or os.path.getsize(target_file) == 0:
-    raise SystemExit(
-        "GPAC.txt could not be retrieved due to Google Drive link rate limits.\\n"
-        "To resolve:\\n"
-        "1. Mount your Google Drive: Run in a cell:\\n"
-        "   from google.colab import drive\\n"
-        "   drive.mount('/content/drive')\\n"
-        "   (Place GPAC.txt in your Google Drive, then re-run this cell)\\n"
-        "OR\\n"
-        "2. Drag and drop GPAC.txt into Colab's file browser pane under /content/."
-    )
-
-# 4. SHA-256 Verification
 h = hashlib.sha256()
-with open(target_file, "rb") as f:
+with open(DST, "rb") as f:
     for chunk in iter(lambda: f.read(1 << 20), b""):
         h.update(chunk)
 
+actual_hash = h.hexdigest()
 EXPECTED = "977706859188f7598ca97a29d7203d86926c11ede591fba31915c74ae9eabcfa"
-assert h.hexdigest() == EXPECTED, f"Raw corpus hash mismatch: {h.hexdigest()} vs {EXPECTED}"
-print("GPAC.txt SHA-256 matches authoritative hash:")
-print(h.hexdigest())"""))
+if actual_hash != EXPECTED:
+    print("----------------------------------------------------------------------")
+    print(f"ACTUAL HASH: {actual_hash}")
+    print(f"EXPECTED:    {EXPECTED}")
+    print("The attached file does not match the authoritative corpus hash.")
+    print("----------------------------------------------------------------------")
 
-    cells.append(md_cell("The raw corpus hash strictly matches the authoritative value recorded in the implementation plan. Step 0 raw data verification passes."))
+assert actual_hash == EXPECTED, f"Raw corpus hash mismatch: {actual_hash}"
+print("GPAC.txt SHA-256 matches:", actual_hash)"""))
+
+    cells.append(md_cell("The raw corpus hash strictly matches the authoritative value recorded in the implementation plan. Step 0 raw data verification passes. (If the assert fails, the file is wrong)."))
 
     # Cell 6: Reset stale outputs
     cells.append(code_cell("""import os, shutil
