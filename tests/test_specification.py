@@ -448,3 +448,34 @@ def test_manifest_inputs(tmp_path: Path):
         # Modify input content
         inp.write_text("changed input content", encoding="utf-8")
         assert stage_is_done("stage_test", [inp], [out]) is False
+
+
+# ---------------------------------------------------------------------------
+# Test 13: test_pack_variants
+# ---------------------------------------------------------------------------
+def test_pack_variants():
+    """Verify pack works with scalar ints, lists of ints, and arrays."""
+    # Scalar int
+    assert pack(42) == 42
+    assert isinstance(pack(42), np.int64)
+
+    # 1-element list
+    assert pack([42]) == 42
+
+    # 2-element list
+    expected_2 = 10 * V_LIMIT + 20
+    assert pack([10, 20]) == expected_2
+
+    # 3-element list
+    expected_3 = (10 * V_LIMIT + 20) * V_LIMIT + 30
+    assert pack([10, 20, 30]) == expected_3
+
+    # Array columns
+    col0 = np.array([10, 100], dtype=np.int32)
+    col1 = np.array([20, 200], dtype=np.int32)
+    packed_arr = pack([col0, col1])
+    np.testing.assert_array_equal(packed_arr, [10 * V_LIMIT + 20, 100 * V_LIMIT + 200])
+
+    # 2D array
+    mat = np.column_stack([col0, col1])
+    np.testing.assert_array_equal(pack(mat), [10 * V_LIMIT + 20, 100 * V_LIMIT + 200])
