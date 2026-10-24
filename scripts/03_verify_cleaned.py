@@ -146,6 +146,8 @@ def main() -> None:
         "avg_length": round(avg_len, 2),
         "ethiopic_letters_only_share": round(letters_only_share, 2),
         "ethiopic_letters_punct_share": round(letters_with_punct_share, 2),
+        "ethiopic_letter_share_pct": round(letters_only_share, 2),
+        "ethiopic_with_punctuation_share_pct": round(letters_with_punct_share, 2),
         "too_short_lines": too_short_lines,
         "forbidden_violations": forbidden_violations,
     }

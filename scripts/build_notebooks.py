@@ -288,9 +288,11 @@ print("--- Running Local Unit Test Suite ---")
 print("\\n--- Pipeline Gate Checks ---")
 # 1. Ethiopic character share (Stage 03)
 v_rec = json.load(open("data/cleaned_verification_record.json"))
-print("Ethiopic letter share:       ", f"{v_rec['ethiopic_letter_share_pct']:.2f}% (Benchmark: > 80%)")
-print("Ethiopic with punct share:   ", f"{v_rec['ethiopic_with_punctuation_share_pct']:.2f}%")
-assert v_rec['ethiopic_letter_share_pct'] >= 80.0
+letter = v_rec.get("ethiopic_letter_share_pct", v_rec.get("ethiopic_letters_only_share"))
+punct = v_rec.get("ethiopic_with_punctuation_share_pct", v_rec.get("ethiopic_letters_punct_share"))
+print("Ethiopic letter share:       ", f"{letter:.2f}% (Benchmark: > 80%)")
+print("Ethiopic with punct share:   ", f"{punct:.2f}%")
+assert letter >= 80.0
 
 # 2. Q1.3 Sum Checks
 print("\\nQ1.3 Sum Checks:")
@@ -643,9 +645,11 @@ print("--- Running Local Unit Test Suite ---")
 
 print("\\n--- Pipeline Gate Checks ---")
 v_rec = json.load(open("data/cleaned_verification_record.json"))
-print("Ethiopic letter share:       ", f"{v_rec['ethiopic_letter_share_pct']:.2f}% (Benchmark: > 80%)")
-print("Ethiopic with punct share:   ", f"{v_rec['ethiopic_with_punctuation_share_pct']:.2f}%")
-assert v_rec['ethiopic_letter_share_pct'] >= 80.0
+letter = v_rec.get("ethiopic_letter_share_pct", v_rec.get("ethiopic_letters_only_share"))
+punct = v_rec.get("ethiopic_with_punctuation_share_pct", v_rec.get("ethiopic_letters_punct_share"))
+print("Ethiopic letter share:       ", f"{letter:.2f}% (Benchmark: > 80%)")
+print("Ethiopic with punct share:   ", f"{punct:.2f}%")
+assert letter >= 80.0
 
 tokens_len = len(np.load("data/tokens.npy", mmap_mode="r"))
 for n in range(1, 5):
