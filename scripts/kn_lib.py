@@ -18,25 +18,38 @@ EOS_ID = 1
 UNK_ID = 2
 
 
-def pack(cols: list[np.ndarray] | np.ndarray) -> np.ndarray:
-    """Pack up to 3 integer column arrays into a single int64 array.
+def pack(cols: list | tuple | np.ndarray | int) -> np.ndarray | np.int64:
+    """Pack up to 3 integer column arrays or scalars into int64 keys.
 
     Formula: pack(c0, c1, c2) = ((c0 * V_LIMIT) + c1) * V_LIMIT + c2.
     Safe within 63-bit signed integer range for up to 3 columns when all IDs < V_LIMIT.
     """
+    if isinstance(cols, (int, np.integer)):
+        return np.int64(cols)
+
     if isinstance(cols, np.ndarray):
+        if cols.ndim == 0:
+            return np.int64(cols.item())
         if cols.ndim == 1:
             return cols.astype(np.int64)
-        cols_list = [cols[:, i] for i in range(cols.shape[1])]
-    else:
-        cols_list = cols
+        val = cols[:, 0].astype(np.int64)
+        for i in range(1, cols.shape[1]):
+            val = val * V_LIMIT + cols[:, i].astype(np.int64)
+        return val
 
-    if not cols_list:
+    if not isinstance(cols, (list, tuple)) or len(cols) == 0:
         return np.empty(0, dtype=np.int64)
 
-    val = cols_list[0].astype(np.int64)
-    for c in cols_list[1:]:
-        val = val * V_LIMIT + c.astype(np.int64)
+    first = cols[0]
+    if isinstance(first, (int, np.integer)):
+        val = int(first)
+        for c in cols[1:]:
+            val = val * V_LIMIT + int(c)
+        return np.int64(val)
+
+    val = np.asarray(first, dtype=np.int64)
+    for c in cols[1:]:
+        val = val * V_LIMIT + np.asarray(c, dtype=np.int64)
     return val
 
 
