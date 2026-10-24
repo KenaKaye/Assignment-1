@@ -18,10 +18,7 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-import importlib
-
-scripts_09 = importlib.import_module("scripts.09_kn")
-KneserNeyModel = scripts_09.KneserNeyModel
+from scripts.kn_lib import KneserNeyModel
 
 TRAIN_COUNTS_DIR = ROOT_DIR / "data" / "counts" / "train_seed42"
 VOCAB_FILE = TRAIN_COUNTS_DIR / "vocab_train.tsv"

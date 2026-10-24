@@ -91,16 +91,19 @@ Each step has a verification check in the plan. Do not start the next step until
 
 - Never run analysis on the corpus until the Step 0 checks pass: correct file, UTF-8 decoding, Ethiopic character share above 80%, no HTML content, no truncation, and a recorded SHA-256 checksum.
 - All analysis reads `data/GPAC_cleaned.txt` and the artifacts listed in the plan's artifact layout. Never read the raw `GPAC.txt` for analysis, and never use the Kaggle `Cleaned_GPAC.txt` as input.
+- The cleaned corpus keeps sentence-final punctuation (D5): each line ends with `።`, `?`, or `!`. `፡፡+` is normalized to `።`.
 - Record the verification result in `README.md`.
 - If the file looks wrong, stop and ask the user for the correct file. Do not substitute another file or fabricate data.
 
 ### B3. Prevent Data Leakage
 
-- Split the corpus by sentence into train and test sets once, using `SEED = 42`, and save the line indices to `data/split_indices_seed42.json`. Reuse the saved split. Do not re-split silently.
-- Build n-gram counts from the training split only when evaluating in Q2, Q3, and Q4. The application uses the same training-split counts as its evaluation.
-- Words that occur exactly once in the training split become `<UNK>` in the training counts. Test words not in the training vocabulary are scored as `<UNK>`.
-- Never tune any threshold (for example, τ in Q3) on the test split. Tune it on the tuning set taken from the training split (plan, Q3 step 2) and then apply it once to the test set.
-- No sampling of the data. The only permitted subset is the Q4 evaluation runtime exception in the plan, which must be recorded.
+- Split the corpus by sentence into train and test sets once, using `SEED = 42`, and save the line indices to `data/split_indices_seed42_v2.json`. Reuse the saved split. Do not re-split silently.
+- A 5% tuning set `tune` is carved out of the training split *before counting*, leaving `train_core` (~85%) for training counts (D2).
+- Build n-gram counts from `train_core` only when evaluating in Q2, Q3, and Q4. The application uses the seed-42 training-split counts as its evaluation.
+- Seed-7 stability evaluation in Q2 uses its own training counts built from its own independent `train_core` split (D4).
+- Words that occur $\le 1$ time in `train_core` are mapped to `<UNK>` via the training LUT (`lut_train_seed42.npy`, `lut_train_seed7.npy`). Test words not in the training vocabulary are scored as `<UNK>`. Original global IDs are preserved.
+- Never tune any threshold (for example, τ in Q3) on the test split. Tune it strictly on the `tune` set (which has 0 sentence overlap with training counts) and then apply it once to the test set.
+- No sampling of the data. Q2, Q3, and Q4 evaluate on the full held-out test splits without sampling exceptions (D3).
 - Never use test sentences to choose smoothing parameters, stopwords, or the usability threshold.
 
 ### B4. Reproducibility
@@ -128,7 +131,7 @@ Every solution file must make it easy for the teacher to find each answer.
   - Q1: counts and probabilities. Sum checks must pass within 1e-9.
   - Q2: perplexity only. Classification metrics do not apply, because there are no predicted categories.
   - Q3: accuracy, precision, recall, F1, ROC-AUC, and a confusion matrix. Log loss only if the scores are calibrated, and say so.
-  - Q4: top-1 accuracy, top-5 hit rate, and mean reciprocal rank.
+  - Q4: top-1 accuracy, top-5 hit rate, and MRR@5 (`mrr_at_5`).
 - Use the benchmarks and thresholds in the implementation plan.
 - Never change a benchmark or threshold to match the results. If a result misses a target, report the actual number and explain the likely cause.
 - Label every threshold in the report as a proposed target set by the group, not a published standard. Confirm with the instructor where the assignment does not specify one.
@@ -151,6 +154,7 @@ Every solution file must make it easy for the teacher to find each answer.
 ### B9. Notebook and File Conventions
 
 - Notebook names: `Q1_ngram_model.ipynb`, `Q2_intrinsic_eval.ipynb`, `Q3_extrinsic_eval.ipynb`, `Q4_predictive_app.ipynb`.
+- Build notebooks: `kaggle/Kaggle_Build.ipynb` and `colab/Colab_Build.ipynb`.
 - Application code for Q4 goes in `app/`. Keep the application logic separate from the notebook experiments.
 - Figures go in `figures/` with descriptive names, for example `q1_6_wordcloud_bigram_before.png`.
 - Follow the artifact layout table in the plan. Commit only the files marked "Yes" there. The large files in `data/` are rebuilt by the scripts and must be listed in `.gitignore`.
@@ -166,11 +170,10 @@ Every solution file must make it easy for the teacher to find each answer.
 
 ### B13. Where Code Runs
 
-- Heavy work runs on Colab only: any pass over `GPAC.txt` or `GPAC_cleaned.txt`, any sort, count, or lookup over `tokens.npy` or the count arrays, any perplexity or evaluation over the test split, and any build of counts.
-- Every heavy script calls `require_colab()` and must refuse to run on the PC. Do not work around this check. The `ALLOW_HEAVY_LOCAL=1` override may be used only for a deliberate, recorded decision.
-- The PC runs light work only: reading `results/`, rendering figures, running the CLI, the API, and the Next.js UI against the downloaded training-split artifacts, checksum checks, and unit tests on small fixtures in the repository.
-- Write the Colab notebook `colab/Colab_Build.ipynb` and the scripts listed in the plan's "Colab Build and PC Results" section. Do not write heavy code that is meant to run locally.
-- Heavy stages use checkpoints: a stage is skipped only if its output and its SHA-256 in `data/checksums.json` both exist and match.
+- Heavy work runs on Kaggle or Colab only: any pass over `GPAC.txt` or `GPAC_cleaned.txt`, any sort, count, or lookup over `tokens.npy` or the count arrays, any perplexity or evaluation over the test split, and any build of counts.
+- Every heavy script calls `require_heavy_runtime()` and must refuse to run on the PC. Do not work around this check. The `ALLOW_HEAVY_LOCAL=1` override may be used only for a deliberate, recorded decision, which is logged to `results/run_log.jsonl`.
+- The PC runs light work only: reading `results/`, rendering figures, running the CLI, the API, and the Next.js UI against the downloaded training-split artifacts, checksum checks, and unit tests on small fixtures in `tests/`.
+- Heavy stages use two-tier checkpoints via `data/manifest.json`: a stage is skipped only if all its input hashes and output hashes match the recorded values.
 - Before any notebook or app runs on the PC, `scripts/check_download.py` must report every downloaded checksum as matching.
 
 ### B11. When to Ask Instead of Proceeding
@@ -182,7 +185,7 @@ Ask before implementing when any of the following is true:
 - A required benchmark is missing or unclear.
 - Two group members' instructions conflict.
 - A change would touch the test split, the saved splits, or the verification record.
-- A counting stage exceeds the 8 GB memory budget and the partition fallback has not been tried or recorded.
+- A counting stage exceeds the detected memory budget and the partition fallback has not been tried or recorded.
 
 Ask once, clearly, and state the options you see and your recommendation. Do not ask questions that the plan already answers.
 

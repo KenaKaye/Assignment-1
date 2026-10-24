@@ -31,19 +31,18 @@ from scripts.common import (
     RESULTS_DIR,
     SEED,
     UNK_ID,
+    V_LIMIT,
     WORD_RE,
-    is_checkpoint_done,
-    record_stage_checkpoint,
-    require_colab,
+    require_heavy_runtime,
+    stage_is_done,
+    record_stage,
 )
-import importlib
-
-scripts_09 = importlib.import_module("scripts.09_kn")
-KneserNeyModel = scripts_09.KneserNeyModel
+from scripts.kn_lib import KneserNeyModel, pack
 
 STAGE_NAME = "10_q1_results"
 VOCAB_FILE = DATA_DIR / "vocab.tsv"
 CLEANED_FILE = DATA_DIR / "GPAC_cleaned.txt"
+TOKENS_FILE = DATA_DIR / "tokens.npy"
 
 # 30 justified Amharic stopwords (conjunctions, prepositions, copulas, particles)
 AMHARIC_STOPWORDS = {
@@ -69,25 +68,45 @@ def load_vocab() -> tuple[dict[int, str], dict[str, int]]:
     return id2w, w2id
 
 
+def top_k_indices(arr: np.ndarray, k: int) -> np.ndarray:
+    """Return indices of top k elements in descending order via argpartition."""
+    n = len(arr)
+    if n <= k:
+        return np.argsort(arr)[::-1]
+    part = np.argpartition(arr, n - k)[n - k:]
+    return part[np.argsort(arr[part])[::-1]]
+
+
 def main() -> None:
-    require_colab(STAGE_NAME)
+    require_heavy_runtime(STAGE_NAME)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     random.seed(SEED)
     np.random.seed(SEED)
+    rng = np.random.default_rng(SEED)
 
-    expected_files = [
+    expected_inputs = [
+        CLEANED_FILE,
+        VOCAB_FILE,
+        TOKENS_FILE,
+    ]
+    for n in range(1, 5):
+        expected_inputs.append(FULL_COUNTS_DIR / f"order{n}_ngrams.npy")
+        expected_inputs.append(FULL_COUNTS_DIR / f"order{n}_counts.npy")
+
+    expected_outputs = [
         RESULTS_DIR / "q1_sentence_probs.csv",
         RESULTS_DIR / "q1_generation.json",
         RESULTS_DIR / "q1_bigram_conditional.csv",
     ]
     for n in range(1, 5):
-        expected_files.append(RESULTS_DIR / f"q1_top10_n{n}.csv")
-        expected_files.append(RESULTS_DIR / f"q1_stopword_top10_n{n}.csv")
-        expected_files.append(RESULTS_DIR / f"q1_wordcloud_n{n}_before.csv")
-        expected_files.append(RESULTS_DIR / f"q1_wordcloud_n{n}_after.csv")
+        expected_outputs.append(RESULTS_DIR / f"q1_top10_n{n}.csv")
+        expected_outputs.append(RESULTS_DIR / f"q1_stopword_top10_n{n}.csv")
+        expected_outputs.append(RESULTS_DIR / f"q1_wordcloud_n{n}_before.csv")
+        expected_outputs.append(RESULTS_DIR / f"q1_wordcloud_n{n}_after.csv")
 
-    if is_checkpoint_done(STAGE_NAME, expected_files):
+    if stage_is_done(STAGE_NAME, expected_inputs, expected_outputs):
+        print(f"[{STAGE_NAME}] Checkpoint valid. Skipping.")
         return
 
     print(f"--- Starting Stage: {STAGE_NAME} ---")
@@ -95,6 +114,11 @@ def main() -> None:
 
     id2w, w2id = load_vocab()
     stopword_ids = {w2id[w] for w in AMHARIC_STOPWORDS if w in w2id}
+
+    # Load token length
+    tokens_mmap = np.load(TOKENS_FILE, mmap_mode="r")
+    total_tokens = len(tokens_mmap)
+    del tokens_mmap
 
     # Load full counts
     ngrams = {}
@@ -104,16 +128,22 @@ def main() -> None:
         ngrams[n] = np.load(FULL_COUNTS_DIR / f"order{n}_ngrams.npy")
         counts[n] = np.load(FULL_COUNTS_DIR / f"order{n}_counts.npy")
 
-    # Q1.3: Top 10 tables and sanity check sums
-    print("\n[Q1.3] Computing Top-10 n-grams and probabilities...")
-    total_tokens = counts[1].sum()
+    # Q1.3: Sum checks & Top 10 tables
+    print("\n[Q1.3] Sum checks and Top-10 n-grams...")
     for n in range(1, 5):
-        top_idx = np.argsort(counts[n])[::-1][:10]
+        c_sum = int(counts[n].sum())
+        assert c_sum == total_tokens, f"Order {n} sum {c_sum} != total tokens {total_tokens}"
+        prob_sum = float(np.sum(counts[n] / total_tokens))
+        diff = abs(prob_sum - 1.0)
+        assert diff <= 1e-9, f"Order {n} probability sum {prob_sum} deviates by {diff:.2e}"
+        print(f"  [Sum check n={n}] counts={c_sum:,}, sum(P)={prob_sum:.10f}, diff={diff:.2e}")
+
+        top10_idx = top_k_indices(counts[n], 10)
         csv_file = RESULTS_DIR / f"q1_top10_n{n}.csv"
         with open(csv_file, "w", encoding="utf-8", newline="\n") as f:
             writer = csv.writer(f)
             writer.writerow(["rank", "ngram", "count", "probability"])
-            for rank, idx in enumerate(top_idx, start=1):
+            for rank, idx in enumerate(top10_idx, start=1):
                 row = ngrams[n][idx]
                 cnt = int(counts[n][idx])
                 text_ngram = " ".join(id2w.get(tid, f"<ID:{tid}>") for tid in row)
@@ -160,7 +190,7 @@ def main() -> None:
     print("\n[Q1.5 & Q1.6] Generating before/after stopword removal tables...")
     for n in range(1, 5):
         # Top 200 before
-        top_before_idx = np.argsort(counts[n])[::-1][:200]
+        top_before_idx = top_k_indices(counts[n], 200)
         before_file = RESULTS_DIR / f"q1_wordcloud_n{n}_before.csv"
         with open(before_file, "w", encoding="utf-8", newline="\n") as f:
             writer = csv.writer(f)
@@ -176,8 +206,9 @@ def main() -> None:
         for col_idx in range(n):
             is_stop |= np.isin(ng_n[:, col_idx], list(stopword_ids))
 
-        filtered_idx = np.where(~is_stop)[0]
-        sorted_filtered = filtered_idx[np.argsort(counts[n][filtered_idx])[::-1]]
+        filtered_indices = np.where(~is_stop)[0]
+        sorted_rel = top_k_indices(counts[n][filtered_indices], min(200, len(filtered_indices)))
+        sorted_filtered = filtered_indices[sorted_rel]
 
         # Top 10 after
         stop_top10_file = RESULTS_DIR / f"q1_stopword_top10_n{n}.csv"
@@ -199,91 +230,128 @@ def main() -> None:
                 text_ngram = " ".join(id2w.get(tid, f"<ID:{tid}>") for tid in row)
                 writer.writerow([text_ngram, int(counts[n][idx])])
 
-    # Q1.7: Target sentence log-probability and comparisons
-    print("\n[Q1.7] Evaluating Kneser-Ney sentence probabilities...")
+    # Hash EVERY line of GPAC_cleaned.txt for verbatim checks (10-6)
+    print("\n[Stage 10] Hashing all lines of GPAC_cleaned.txt for 100% full-corpus verbatim checking...")
+    corpus_hashes = []
+    with open(CLEANED_FILE, "rb") as f:
+        for line in f:
+            line_clean = line.strip()
+            if line_clean:
+                h = int.from_bytes(hashlib.blake2b(line_clean, digest_size=8).digest(), "little")
+                corpus_hashes.append(h)
+    sorted_corpus_hashes = np.array(corpus_hashes, dtype=np.uint64)
+    sorted_corpus_hashes.sort()
+    print(f"  Indexed {len(sorted_corpus_hashes):,} sentence hashes.")
+
+    # Initialize KneserNeyModel on full corpus
+    print("\nInitializing KneserNeyModel on full-corpus counts...")
     kn_model = KneserNeyModel(ngrams, counts, max_order=4)
 
+    # Q1.7: Target sentence log-probability and comparisons
+    print("\n[Q1.7] Evaluating Kneser-Ney sentence probabilities & verbatim status...")
     test_sentences = [
-        ("ኢትዮጵያ በአፍሪካ ቀንድ ትገኛለች።", "canonical_target"),
-        ("የኢትዮጵያ መንግስት ለህዝቡ ሰላም እና ልማት ይሰራል::", "corpus_fluent"),
-        ("አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት።", "corpus_fluent_2"),
+        ("ኢትዮጵያ በአፍሪካ ቀንድ ትገኛለች።", "test_1"),
+        ("የኢትዮጵያ መንግስት ለህዝቡ ሰላም እና ልማት ይሰራል።", "test_2"),
+        ("አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት።", "test_3"),
         ("ድንጋይ ሰማይ ሮጠ በላ ትላንት ወንበር።", "invented_nonsense"),
     ]
 
     probs_file = RESULTS_DIR / "q1_sentence_probs.csv"
     with open(probs_file, "w", encoding="utf-8", newline="\n") as f:
         writer = csv.writer(f)
-        writer.writerow(["sentence", "category", "n", "log_prob", "per_token_log_prob"])
+        writer.writerow(["sentence", "category", "n", "log_prob", "per_token_log_prob", "is_verbatim_in_corpus"])
         for sent_text, cat in test_sentences:
+            h_sent = int.from_bytes(hashlib.blake2b(sent_text.strip().encode("utf-8"), digest_size=8).digest(), "little")
+            idx = np.searchsorted(sorted_corpus_hashes, h_sent)
+            is_verb = bool(idx < len(sorted_corpus_hashes) and sorted_corpus_hashes[idx] == h_sent)
+
             words = WORD_RE.findall(sent_text)
             token_ids = [w2id.get(w, UNK_ID) for w in words] + [EOS_ID]
             length = len(token_ids)
+            tok_arr = np.array(token_ids, dtype=np.int32)
+            pos_arr = np.arange(length, dtype=np.int64)
+
             for n in range(1, 5):
-                logp = kn_model.sentence_logprob(token_ids, order=n)
+                logp_arr, _ = kn_model.score_sequence(tok_arr, pos_arr, order=n)
+                logp = float(logp_arr.sum())
                 per_token = logp / length
-                writer.writerow([sent_text, cat, n, f"{logp:.4f}", f"{per_token:.4f}"])
-                print(f"  [{cat}] n={n} | LogP: {logp:8.4f} | Per-token: {per_token:8.4f} | {sent_text}")
+                writer.writerow([sent_text, cat, n, f"{logp:.4f}", f"{per_token:.4f}", is_verb])
+                print(f"  [{cat}] n={n} | LogP: {logp:8.4f} | Per-token: {per_token:8.4f} | Verbatim: {is_verb} | {sent_text}")
 
     # Q1.8: Generation & verbatim fractions
-    print("\n[Q1.8] Generating sentences across orders 1 to 4...")
-    # Hash 100,000 corpus sentences to check verbatim full copies
-    seen_sentence_hashes = set()
-    if CLEANED_FILE.exists():
-        with open(CLEANED_FILE, "r", encoding="utf-8") as f:
-            for i, line in enumerate(f):
-                h = hashlib.blake2b(line.strip().encode("utf-8"), digest_size=16).digest()
-                seen_sentence_hashes.add(h)
-                if i >= 100000:
-                    break
-
+    print("\n[Q1.8] Generating sentences across orders 1 to 4 using model sampling...")
     generated_results = {}
+    valid_unigrams = [tid for tid in kn_model.unique_rows[1][:, 0] if tid not in (PAD_ID, UNK_ID)]
+
     for n in range(1, 5):
         generated_results[f"n={n}"] = []
         for s_idx in range(3):
-            # Generation loop
             context: list[int] = []
             gen_words = []
+            logp_tokens = []
+
             for _ in range(25):  # max_len
-                needed_pad = (n - 1) - len(context)
-                eff_context = ([PAD_ID] * max(0, needed_pad)) + context
+                # Find candidates by context backoff
+                cand_set: list[int] = []
+                cur_k = n
+                while cur_k >= 2:
+                    if len(context) >= cur_k - 1:
+                        sub_ctx = context[-(cur_k - 1):]
+                        q = pack(sub_ctx)
+                        keys = kn_model.ctx_keys[cur_k]
+                        g = int(np.searchsorted(keys, q))
+                        if g < len(keys) and keys[g] == q:
+                            st = kn_model.ctx_start[cur_k][g]
+                            cnt = kn_model.ctx_n1[cur_k][g]
+                            cand_set = list(kn_model.unique_rows[cur_k][st : st + cnt, -1])
+                            break
+                    cur_k -= 1
 
-                # Draw top candidates
-                if n == 1 or len(context) == 0:
-                    # Unigram sample from top 100
-                    top_candidates = ngrams[1][:100, 0]
+                if not cand_set:
+                    cand_set = valid_unigrams
+
+                # Always allow EOS_ID, exclude PAD and UNK
+                cands = [tid for tid in cand_set if tid not in (PAD_ID, UNK_ID)]
+                if len(gen_words) < 3 and EOS_ID in cands:
+                    cands.remove(EOS_ID)
+                elif EOS_ID not in cands:
+                    cands.append(EOS_ID)
+
+                cands_arr = np.array(cands, dtype=np.int32)
+                ctx_hist = ([PAD_ID] * max(0, n - 1 - len(context))) + context
+                eff_ctx = ctx_hist[-(n - 1):] if n > 1 else []
+
+                # Vectorized probability calculation for candidate words
+                ctx_cols = [np.full(len(cands_arr), eff_ctx[c], dtype=np.int64) for c in range(len(eff_ctx))]
+                probs = kn_model.prob(ctx_cols, cands_arr, order=n)
+                p_sum = probs.sum()
+                if p_sum > 0:
+                    probs /= p_sum
                 else:
-                    h = eff_context[-(n - 1):]
-                    l, r = kn_model._find_ngram_range(n, h)
-                    if r > l:
-                        top_candidates = ngrams[n][l:r, -1]
-                    else:
-                        top_candidates = ngrams[1][:50, 0]
+                    probs = np.full(len(cands_arr), 1.0 / len(cands_arr))
 
-                # Filter EOS early if too short
-                valid_cand = [tid for tid in top_candidates if tid not in (PAD_ID, UNK_ID)]
-                if len(gen_words) < 3 and EOS_ID in valid_cand:
-                    valid_cand.remove(EOS_ID)
-                if not valid_cand:
-                    break
+                next_word = int(rng.choice(cands_arr, p=probs))
+                chosen_idx = np.where(cands_arr == next_word)[0][0]
+                logp_tokens.append(float(np.log(max(probs[chosen_idx], 1e-12))))
 
-                # Sample candidate
-                next_word = int(random.choice(valid_cand[:10]))
                 if next_word == EOS_ID:
                     break
                 gen_words.append(id2w.get(next_word, f"<ID:{next_word}>"))
                 context.append(next_word)
 
             gen_text = " ".join(gen_words) + "።"
-            # Verbatim check
-            h_gen = hashlib.blake2b(gen_text.encode("utf-8"), digest_size=16).digest()
-            is_full_copy = h_gen in seen_sentence_hashes
+            h_gen = int(hashlib.blake2b(gen_text.encode("utf-8"), digest_size=8).hexdigest(), 16)
+            idx = np.searchsorted(sorted_corpus_hashes, h_gen)
+            is_full_copy = bool(idx < len(sorted_corpus_hashes) and sorted_corpus_hashes[idx] == h_gen)
 
+            total_logp = float(sum(logp_tokens))
             generated_results[f"n={n}"].append({
                 "sentence": gen_text,
                 "length": len(gen_words),
+                "log_prob": round(total_logp, 4),
                 "is_full_verbatim_copy": is_full_copy,
             })
-            print(f"  Generated n={n}: {gen_text}")
+            print(f"  Generated n={n}: {gen_text} (LogP: {total_logp:.2f}, Verbatim: {is_full_copy})")
 
     gen_file = RESULTS_DIR / "q1_generation.json"
     with open(gen_file, "w", encoding="utf-8") as f:
@@ -291,7 +359,7 @@ def main() -> None:
 
     elapsed = time.time() - start_time
     print(f"\n[SUCCESS] Stage {STAGE_NAME} completed in {elapsed:.2f} s")
-    record_stage_checkpoint(STAGE_NAME, expected_files)
+    record_stage(STAGE_NAME, expected_inputs, expected_outputs)
 
 
 if __name__ == "__main__":

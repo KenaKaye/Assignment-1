@@ -6,6 +6,30 @@
 
 ---
 
+## Architectural Decisions & Governance (D1–D8, 2026-10-24)
+
+The following architectural and methodological decisions govern this implementation:
+
+| Decision | Area | Specification | Rationale |
+| :--- | :--- | :--- | :--- |
+| **D1** | **Heavy Execution** | Heavy stages run on **Kaggle CPU** or **Google Colab**, detected dynamically via `require_heavy_runtime()`. | Allows 30 GiB RAM execution on Kaggle while maintaining Colab portability. PC executes light stages only. |
+| **D2** | **Q3 Tuning Set** | 5% tuning set `tune` carved out of training partition *before counting*; `train_core` counts exclude it. | Prevents data leakage where tuning sentences would be scored using counts that contain them. |
+| **D3** | **Zero Sampling** | Full held-out sets evaluated across Q2, Q3, and Q4. | High-performance vectorized scoring in `kn_lib.py` and `ngram_lib.py` makes evaluating 500k test sentences efficient. |
+| **D4** | **Q2 Seed Stability** | Seed 7 uses independent `train_core` counts built from its own split. | Seed-7 test sentences must not be scored against seed-42 counts containing ~90% of those sentences. |
+| **D5** | **Sentence Punctuation** | Kept sentence-final marks (`።`, `?`, `!`); `፡፡+` normalized to `።`. | Preserves grammatical boundaries required for Q1.8 verbatim matching and sentence reconstruction. |
+| **D6** | **Memory Budget** | Dynamically detected from cgroups/meminfo (`budget = 0.90 * total - 1024 MB`). | Kaggle provides 30 GiB RAM, Colab standard ~12.7 GB. Hard-coded caps are eliminated. |
+| **D7** | **Q4 Metric Naming** | Named **MRR@5** (`mrr_at_5`). | Accurately describes that candidates ranked below rank 5 score reciprocal rank 0. |
+| **D8** | **Vocabulary IDs** | Single global ID space with int32 lookup tables (`lut_train_*.npy`) for `<UNK>`. | Eliminates ID desynchronization between full vocabulary and training partitions. |
+
+### Punctuation & Boundary Rules
+- **Sentence Boundaries:** Ethiopic full stop `።` (U+1362), question mark `?`, exclamation mark `!`, and repeated colons `፡፡+` (normalized to `።`).
+- **Internal Non-Boundary Marks:** Word separator `፡` (U+1361) and comma `፣` (U+1363) are retained as internal text tokens, NOT sentence boundaries.
+  - *Sample 1 (Word divider):* `ኢትዮጵያ፡የረጅም፡ዘመን፡ታሪክ፡ያላት፡ሀገር፡ናት።` (`፡` separates tokens within a sentence).
+  - *Sample 2 (List enumerator):* `በስብሰባው፡ላይ፡አቶ፡ከበደ፣፡ወይዘሮ፡አልማዝና፡ዶክተር፡ታደሰ፡ተገኝተዋል።` (`፣` separates list items).
+  - *Sample 3 (Clausal pause):* `ትምህርት፣ ጤና እና መሰረተ ልማት የሀገር እድገት መሰረቶች ናቸው።` (`፣` indicates a phrase clause).
+
+---
+
 ## 1. Corpus Information & Source
 
 * **Corpus Name:** GPAC (General-Purpose Amharic Corpus)
@@ -28,9 +52,9 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
 | **Content Integrity** | Clean Amharic text stream without HTML tags or truncated endings |
 | **Total Characters** | 424,397,739 characters |
 | **Non-Space Characters** | 325,302,788 characters |
-| **Ethiopic Characters (U+1200 - U+137F)** | 319,350,166 characters |
-| **Ethiopic Character Share** | **98.17%** of non-space text |
-| **Sentence Delimiters** | Ethiopic punctuation (`።`, `?`, `!`, `፤`) |
+| **Ethiopic Letters Only (U+1200 - U+135A)** | Reported in Stage 03 verification (> 80% benchmark) |
+| **Ethiopic Characters with Punctuation (U+1200 - U+137F)** | 319,350,166 characters (98.17% of non-space text) |
+| **Sentence Delimiters** | Sentence punctuation (`።`, `?`, `!`, `፡፡+`) |
 
 ---
 

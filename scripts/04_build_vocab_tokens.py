@@ -25,11 +25,12 @@ from scripts.common import (
     PAD_TOKEN,
     UNK_ID,
     UNK_TOKEN,
+    V_LIMIT,
     WORD_RE,
     get_peak_memory_mb,
-    is_checkpoint_done,
-    record_stage_checkpoint,
-    require_colab,
+    require_heavy_runtime,
+    stage_is_done,
+    record_stage,
 )
 
 STAGE_NAME = "04_build_vocab_tokens"
@@ -40,10 +41,12 @@ STARTS_FILE = DATA_DIR / "sentence_starts.npy"
 
 
 def main() -> None:
-    require_colab(STAGE_NAME)
+    require_heavy_runtime(STAGE_NAME)
 
-    expected_files = [VOCAB_FILE, TOKENS_FILE, STARTS_FILE]
-    if is_checkpoint_done(STAGE_NAME, expected_files):
+    inputs = [CLEANED_FILE]
+    outputs = [VOCAB_FILE, TOKENS_FILE, STARTS_FILE]
+
+    if stage_is_done(STAGE_NAME, inputs, outputs):
         return
 
     if not CLEANED_FILE.exists():
@@ -53,33 +56,37 @@ def main() -> None:
     print(f"--- Starting Stage: {STAGE_NAME} ---")
     start_time = time.time()
 
-    # Pass 1: Build vocabulary frequencies and count total elements
+    # Pass 1: Build vocabulary frequencies and record sentence lengths
     print("Pass 1: Accumulating word frequencies and sentence structure...")
     freqs = Counter()
     total_sentences = 0
     total_words = 0
+    sentence_lengths_list: list[int] = []
 
     with open(CLEANED_FILE, "r", encoding="utf-8") as f:
         for line_num, line in enumerate(f, start=1):
             words = WORD_RE.findall(line)
-            if len(words) < 2:
+            n_words = len(words)
+            if n_words < 2:
                 continue
             total_sentences += 1
-            total_words += len(words)
+            total_words += n_words
             freqs.update(words)
+            sentence_lengths_list.append(n_words + 1)  # +1 for EOS_ID
+
             if line_num % 1000000 == 0:
                 print(f"  Counted {line_num:,} lines...")
 
-    total_token_elements = total_words + total_sentences  # Each sentence ends with </s> (EOS)
-    vocab_size = len(freqs) + 3  # + <s>, </s>, <UNK>
+    total_token_elements = total_words + total_sentences
+    vocab_size = len(freqs) + 3
 
     print(f"\nTotal Sentences: {total_sentences:,}")
     print(f"Total Words: {total_words:,}")
     print(f"Total Elements in tokens.npy (including EOS): {total_token_elements:,}")
     print(f"Vocabulary Size (including reserved): {vocab_size:,}")
 
-    # Check that vocabulary fits within 2^21 (2,097,152)
-    assert vocab_size < 2097152, f"Vocab size {vocab_size} exceeds 2^21 benchmark!"
+    # Check V_LIMIT packing bound
+    assert vocab_size < V_LIMIT, f"Vocab size {vocab_size} exceeds V_LIMIT ({V_LIMIT})!"
 
     # Write vocab.tsv
     print(f"Writing vocabulary to {VOCAB_FILE}...")
@@ -103,36 +110,36 @@ def main() -> None:
     del freqs
     print(f"Saved {VOCAB_FILE}")
 
-    # Pass 2: Allocate and populate tokens.npy and sentence_starts.npy
-    print("\nPass 2: Populating int32 tokens array and int64 sentence starts...")
-    tokens = np.empty(total_token_elements, dtype=np.int32)
+    # Build sentence_starts using vectorized cumsum
+    sentence_lengths = np.array(sentence_lengths_list, dtype=np.int64)
+    del sentence_lengths_list
+
     sentence_starts = np.empty(total_sentences, dtype=np.int64)
+    if total_sentences > 0:
+        sentence_starts[0] = 0
+        if total_sentences > 1:
+            np.cumsum(sentence_lengths[:-1], out=sentence_starts[1:])
+    del sentence_lengths
 
-    curr_token_idx = 0
-    curr_sent_idx = 0
+    # Pass 2: Vectorized chunked token array generation (item 4-1)
+    print("\nPass 2: Streaming tokens into contiguous int32 array via np.fromiter...")
 
-    with open(CLEANED_FILE, "r", encoding="utf-8") as f:
-        for line_num, line in enumerate(f, start=1):
-            words = WORD_RE.findall(line)
-            if len(words) < 2:
-                continue
+    def token_generator():
+        with open(CLEANED_FILE, "r", encoding="utf-8") as in_f:
+            for l_num, l_str in enumerate(in_f, start=1):
+                w_list = WORD_RE.findall(l_str)
+                if len(w_list) < 2:
+                    continue
+                for w in w_list:
+                    yield word_to_id.get(w, UNK_ID)
+                yield EOS_ID
+                if l_num % 1000000 == 0:
+                    print(f"  Tokenized {l_num:,} lines...")
 
-            sentence_starts[curr_sent_idx] = curr_token_idx
-            curr_sent_idx += 1
+    tokens = np.fromiter(token_generator(), dtype=np.int32, count=total_token_elements)
 
-            for w in words:
-                tokens[curr_token_idx] = word_to_id.get(w, UNK_ID)
-                curr_token_idx += 1
-
-            # Append EOS
-            tokens[curr_token_idx] = EOS_ID
-            curr_token_idx += 1
-
-            if line_num % 1000000 == 0:
-                print(f"  Tokenized {line_num:,} lines...")
-
-    assert curr_token_idx == total_token_elements, "Token index mismatch!"
-    assert curr_sent_idx == total_sentences, "Sentence index mismatch!"
+    assert len(tokens) == total_token_elements, "Token array length mismatch!"
+    assert len(sentence_starts) == total_sentences, "Sentence starts length mismatch!"
 
     print(f"Saving {TOKENS_FILE} ({tokens.nbytes / (1024 * 1024):.1f} MB)...")
     np.save(TOKENS_FILE, tokens)
@@ -141,14 +148,9 @@ def main() -> None:
 
     elapsed = time.time() - start_time
     peak_mem = get_peak_memory_mb()
+    print(f"\n[SUCCESS] Stage {STAGE_NAME} completed in {elapsed:.2f} s (Peak Memory: {peak_mem:.2f} MB)")
 
-    print("\n--- Vocabulary and Tokenization Completed ---")
-    print(f"Elapsed Time: {elapsed:.2f} s")
-    print(f"Peak Memory: {peak_mem:.2f} MB")
-    print(f"Tokens Shape: {tokens.shape}, Dtype: {tokens.dtype}")
-    print(f"Sentence Starts Shape: {sentence_starts.shape}, Dtype: {sentence_starts.dtype}")
-
-    record_stage_checkpoint(STAGE_NAME, expected_files)
+    record_stage(STAGE_NAME, inputs, outputs)
 
 
 if __name__ == "__main__":

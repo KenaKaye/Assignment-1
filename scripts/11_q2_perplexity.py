@@ -1,8 +1,10 @@
 """scripts/11_q2_perplexity.py: Q2 Held-out Perplexity Evaluation.
 
 Computes test split perplexity for n = 1, 2, 3, 4 under Kneser-Ney smoothing:
-- Primary split: seed 42
-- Replication split: seed 7
+- Primary split: seed 42 (evaluated with seed 42 training counts & LUT)
+- Replication split: seed 7 (evaluated with seed 7 training counts & LUT)
+- Full held-out test splits without sampling
+- Vectorized scoring via kn_lib
 - Produces: results/q2_perplexity.json
 """
 
@@ -22,141 +24,167 @@ from scripts.common import (
     DATA_DIR,
     EOS_ID,
     RESULTS_DIR,
-    TRAIN_COUNTS_DIR,
     UNK_ID,
-    WORD_RE,
-    is_checkpoint_done,
-    record_stage_checkpoint,
-    require_colab,
+    require_heavy_runtime,
+    stage_is_done,
+    record_stage,
 )
-import importlib
-
-scripts_09 = importlib.import_module("scripts.09_kn")
-KneserNeyModel = scripts_09.KneserNeyModel
+from scripts.kn_lib import KneserNeyModel
 
 STAGE_NAME = "11_q2_perplexity"
-SPLIT_42_FILE = DATA_DIR / "split_indices_seed42.json"
-SPLIT_7_FILE = DATA_DIR / "split_indices_seed7.json"
-CLEANED_FILE = DATA_DIR / "GPAC_cleaned.txt"
-TRAIN_VOCAB_FILE = TRAIN_COUNTS_DIR / "vocab_train.tsv"
+SPLIT_42_FILE = DATA_DIR / "split_indices_seed42_v2.json"
+SPLIT_7_FILE = DATA_DIR / "split_indices_seed7_v2.json"
+TOKENS_FILE = DATA_DIR / "tokens.npy"
+STARTS_FILE = DATA_DIR / "sentence_starts.npy"
 RESULTS_FILE = RESULTS_DIR / "q2_perplexity.json"
 
 
-def load_train_vocab() -> dict[str, int]:
-    """Load word to ID mapping from data/counts/train_seed42/vocab_train.tsv."""
-    w2id = {}
-    with open(TRAIN_VOCAB_FILE, "r", encoding="utf-8") as f:
-        f.readline()
-        for line in f:
-            parts = line.strip().split("\t")
-            if len(parts) >= 2:
-                w2id[parts[1]] = int(parts[0])
-    return w2id
-
-
-def evaluate_split(
+def evaluate_seed_split(
+    seed: int,
     split_file: Path,
-    kn_model: KneserNeyModel,
-    w2id: dict[str, int],
-    max_eval_sentences: int | None = None,
-) -> dict[str, dict]:
-    """Evaluate perplexity across all orders for a given test split."""
+    tokens: np.ndarray,
+    starts: np.ndarray,
+    ends: np.ndarray,
+) -> dict:
+    """Evaluate held-out test split for a given seed with its own model & LUT."""
+    train_dir = DATA_DIR / "counts" / f"train_seed{seed}"
+    lut_file = train_dir / f"lut_train_seed{seed}.npy"
+    if not lut_file.exists():
+        lut_file = DATA_DIR / f"lut_train_seed{seed}.npy"
+
+    print(f"\n--- Evaluating Seed {seed} ---")
+    print(f"Loading LUT: {lut_file}")
+    lut = np.load(lut_file)
+
+    print(f"Loading KneserNeyModel from {train_dir}...")
+    kn_model = KneserNeyModel.load_from_dir(train_dir, max_order=4)
+
     with open(split_file, "r", encoding="utf-8") as f:
         split_data = json.load(f)
-    test_indices = set(split_data["test"])
-    if max_eval_sentences:
-        test_indices = set(list(test_indices)[:max_eval_sentences])
+    test_indices = np.array(split_data["test"], dtype=np.int64)
 
-    print(f"Loading {len(test_indices):,} test sentences from {CLEANED_FILE.name}...")
-    test_token_sequences: list[list[int]] = []
-    total_unk_count = 0
-    total_tokens = 0
+    test_starts = starts[test_indices]
+    test_lengths = (ends[test_indices] - test_starts).astype(np.int64)
+    valid_mask = test_lengths > 0
+    test_indices = test_indices[valid_mask]
+    test_starts = test_starts[valid_mask]
+    test_lengths = test_lengths[valid_mask]
 
-    with open(CLEANED_FILE, "r", encoding="utf-8") as f:
-        for idx, line in enumerate(f):
-            if idx in test_indices:
-                words = WORD_RE.findall(line)
-                if len(words) < 2:
-                    continue
-                s_ids = []
-                for w in words:
-                    tid = w2id.get(w, UNK_ID)
-                    if tid == UNK_ID:
-                        total_unk_count += 1
-                    s_ids.append(tid)
-                s_ids.append(EOS_ID)
-                total_tokens += len(s_ids)
-                test_token_sequences.append(s_ids)
+    total_test_tokens = int(test_lengths.sum())
+    print(f"Extracting {len(test_indices):,} test sentences ({total_test_tokens:,} tokens)...")
 
-    print(f"Test Set: {len(test_token_sequences):,} sentences, {total_tokens:,} tokens ({total_unk_count:,} UNK)")
+    test_tokens = np.empty(total_test_tokens, dtype=np.int32)
+    test_pos = np.empty(total_test_tokens, dtype=np.int64)
 
-    results_by_order = {}
-    baseline_ppl = None
+    curr = 0
+    for s_start, s_len in zip(test_starts, test_lengths):
+        test_tokens[curr : curr + s_len] = tokens[s_start : s_start + s_len]
+        test_pos[curr : curr + s_len] = np.arange(s_len, dtype=np.int64)
+        curr += s_len
+
+    # Apply training LUT
+    print("Applying training LUT to held-out test tokens...")
+    test_tokens = lut[test_tokens]
+
+    unk_count = int(np.count_nonzero(test_tokens == UNK_ID))
+    unk_fraction = unk_count / total_test_tokens
+    print(f"Held-out tokens: {total_test_tokens:,} | UNK count: {unk_count:,} ({unk_fraction * 100:.2f}%)")
+
+    orders_result = {}
+    unigram_ppl = None
 
     for n in range(1, 5):
         t0 = time.time()
-        print(f"Computing test perplexity for n={n}...")
-        ppl, evaluated_tokens = kn_model.perplexity(test_token_sequences, order=n)
-        elapsed_n = time.time() - t0
+        print(f"Scoring test sequence for order {n}...")
+        logp_arr, _ = kn_model.score_sequence(test_tokens, test_pos, order=n)
+        sum_logp = float(logp_arr.sum())
+        ppl = math.exp(-sum_logp / total_test_tokens)
+        elapsed_n = round(time.time() - t0, 2)
 
         reduction_pct = 0.0
         if n == 1:
-            baseline_ppl = ppl
-        elif baseline_ppl is not None and baseline_ppl > 0:
-            reduction_pct = ((baseline_ppl - ppl) / baseline_ppl) * 100.0
+            unigram_ppl = ppl
+        elif unigram_ppl is not None and unigram_ppl > 0:
+            reduction_pct = ((unigram_ppl - ppl) / unigram_ppl) * 100.0
 
-        results_by_order[f"n={n}"] = {
+        orders_result[f"n={n}"] = {
             "order": n,
             "perplexity": round(ppl, 2),
-            "tokens": evaluated_tokens,
-            "unk_count": total_unk_count,
+            "logp_sum": round(sum_logp, 2),
             "reduction_vs_unigram_pct": round(reduction_pct, 2),
-            "time_sec": round(elapsed_n, 2),
+            "time_sec": elapsed_n,
         }
-        print(f"  n={n} | PP: {ppl:8.2f} (Reduction vs unigram: {reduction_pct:5.2f}%) in {elapsed_n:.2f} s")
+        print(f"  [Seed {seed} n={n}] PP: {ppl:8.2f} (Reduction: {reduction_pct:5.2f}%) in {elapsed_n} s")
 
-    return results_by_order
+    return {
+        "total_sentences": len(test_indices),
+        "total_positions": total_test_tokens,
+        "unk_positions": unk_count,
+        "unk_fraction": round(unk_fraction, 6),
+        "orders": orders_result,
+    }
 
 
 def main() -> None:
-    require_colab(STAGE_NAME)
+    require_heavy_runtime(STAGE_NAME)
 
-    if is_checkpoint_done(STAGE_NAME, [RESULTS_FILE]):
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    expected_inputs = [
+        SPLIT_42_FILE,
+        SPLIT_7_FILE,
+        TOKENS_FILE,
+        STARTS_FILE,
+    ]
+    for s in [42, 7]:
+        td = DATA_DIR / "counts" / f"train_seed{s}"
+        expected_inputs.append(td / f"lut_train_seed{s}.npy")
+        for n in range(1, 5):
+            expected_inputs.append(td / f"order{n}_ngrams.npy")
+            expected_inputs.append(td / f"order{n}_counts.npy")
+
+    if stage_is_done(STAGE_NAME, expected_inputs, [RESULTS_FILE]):
+        print(f"[{STAGE_NAME}] Checkpoint valid. Skipping.")
         return
 
     print(f"--- Starting Stage: {STAGE_NAME} ---")
     start_time = time.time()
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    print("Loading training vocabulary and Kneser-Ney model...")
-    w2id = load_train_vocab()
-    kn_model = KneserNeyModel.load_from_dir(TRAIN_COUNTS_DIR, max_order=4)
+    print(f"Loading {TOKENS_FILE.name} and {STARTS_FILE.name}...")
+    tokens = np.load(TOKENS_FILE, mmap_mode="r")
+    starts = np.load(STARTS_FILE)
+    ends = np.empty_like(starts)
+    ends[:-1] = starts[1:]
+    ends[-1] = len(tokens)
 
-    # Primary Evaluation (Seed 42)
-    print("\n[Primary Run: Seed 42]")
-    eval_seed42 = evaluate_split(SPLIT_42_FILE, kn_model, w2id)
+    # Primary run: seed 42
+    res_42 = evaluate_seed_split(42, SPLIT_42_FILE, tokens, starts, ends)
 
-    # Seed Stability Run (Seed 7)
-    print("\n[Stability Run: Seed 7]")
-    eval_seed7 = evaluate_split(SPLIT_7_FILE, kn_model, w2id)
+    # Replication run: seed 7
+    res_7 = evaluate_seed_split(7, SPLIT_7_FILE, tokens, starts, ends)
+
+    bigram_red_42 = res_42["orders"]["n=2"]["reduction_vs_unigram_pct"]
+    meets_target = bigram_red_42 >= 20.0
 
     output = {
         "benchmark_targets": {
             "bigram_reduction_target_pct": 20.0,
-            "status": "PASS" if eval_seed42["n=2"]["reduction_vs_unigram_pct"] >= 20.0 else "FAIL",
+            "label": "proposed target set by the group, not a published standard",
+            "status": "PASS" if meets_target else "FAIL",
+            "observed_seed42_bigram_reduction_pct": bigram_red_42,
         },
-        "seed_42": eval_seed42,
-        "seed_7": eval_seed7,
+        "seed_42": res_42,
+        "seed_7": res_7,
     }
 
     tmp_file = RESULTS_FILE.with_suffix(".json.tmp")
     with open(tmp_file, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2)
+        json.dump(output, f, indent=2, ensure_ascii=False)
     tmp_file.replace(RESULTS_FILE)
 
-    elapsed = time.time() - start_time
-    print(f"\n[SUCCESS] Stage {STAGE_NAME} complete in {elapsed:.2f} s. Wrote {RESULTS_FILE}")
-    record_stage_checkpoint(STAGE_NAME, [RESULTS_FILE])
+    elapsed = round(time.time() - start_time, 2)
+    print(f"\n[SUCCESS] Stage {STAGE_NAME} completed in {elapsed} s")
+    record_stage(STAGE_NAME, expected_inputs, [RESULTS_FILE])
 
 
 if __name__ == "__main__":
