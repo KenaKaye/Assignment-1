@@ -76,6 +76,10 @@ class ModelStore:
     def vocab_size(self) -> int:
         return len(self.w2id)
 
+    @property
+    def V(self) -> int:
+        return len(self.w2id)
+
 
 def get_model_store() -> ModelStore:
     """Singleton getter for the ModelStore instance."""
