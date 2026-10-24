@@ -119,16 +119,17 @@ print("numpy version:       ", numpy.__version__)"""))
 os.chdir("/kaggle/working")
 
 REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
+BRANCH = "full-corpus"
 
 !rm -rf /kaggle/working/NLP_Assignment1
-!git clone {REPO_URL} /kaggle/working/NLP_Assignment1
+!git clone -b {BRANCH} {REPO_URL} /kaggle/working/NLP_Assignment1
 %cd /kaggle/working/NLP_Assignment1
 !git log -1 --oneline"""))
 
     cells.append(md_cell("The commit hash printed above represents the exact code version executing this build run. Record this commit hash in `README.md`."))
 
     # Cell 5: Attach and verify raw corpus from Kaggle dataset (supports GPAC.txt.gz and GPAC.txt)
-    cells.append(code_cell("""import gzip, shutil, glob, hashlib, os
+    cells.append(code_cell("""import gzip, shutil, hashlib, os
 
 # Start from a directory that always exists, then enter the repository.
 os.chdir("/kaggle/working")
@@ -137,21 +138,33 @@ os.makedirs("data", exist_ok=True)
 
 DST = "data/GPAC.txt"
 
-# Find attached dataset (supports both compressed GPAC.txt.gz and uncompressed GPAC.txt)
-gz_candidates = glob.glob("/kaggle/input/*/GPAC.txt.gz")
-txt_candidates = glob.glob("/kaggle/input/*/GPAC.txt")
+# Recursive search for GPAC file under /kaggle/input (case-insensitive)
+found_files = []
+for root, dirs, files in os.walk("/kaggle/input"):
+    for f in files:
+        if "gpac" in f.lower() and (f.endswith(".gz") or f.endswith(".txt")):
+            found_files.append(os.path.join(root, f))
 
-if gz_candidates:
-    src_path = gz_candidates[0]
+if not found_files:
+    print("Contents currently mounted in /kaggle/input:")
+    for root, dirs, files in os.walk("/kaggle/input"):
+        print(f"  {root}: {files}")
+    raise SystemExit(
+        "GPAC dataset not found in /kaggle/input!\\n"
+        "To fix: In your Kaggle notebook, click '+ Add Input' (top right),\\n"
+        "search for your uploaded dataset under 'Your Work' or 'Datasets', and click '+' to attach it."
+    )
+
+src_path = found_files[0]
+print(f"Found input corpus at: {src_path}")
+
+if src_path.endswith(".gz"):
     print(f"Decompressing {src_path} -> {DST}...")
     with gzip.open(src_path, "rb") as src, open(DST, "wb") as dst:
         shutil.copyfileobj(src, dst)
-elif txt_candidates:
-    src_path = txt_candidates[0]
+else:
     print(f"Copying {src_path} -> {DST}...")
     shutil.copy(src_path, DST)
-else:
-    raise SystemExit("Neither GPAC.txt.gz nor GPAC.txt found under /kaggle/input. Please attach the dataset first.")
 
 h = hashlib.sha256()
 with open(DST, "rb") as f:
@@ -168,7 +181,8 @@ if actual_hash != EXPECTED:
     print("----------------------------------------------------------------------")
 
 assert actual_hash == EXPECTED, f"Raw corpus hash mismatch: {actual_hash}"
-print("GPAC.txt SHA-256 matches:", actual_hash)"""))
+print("GPAC.txt SHA-256 matches authoritative hash:")
+print(actual_hash)"""))
 
     cells.append(md_cell("The raw corpus hash strictly matches the authoritative value recorded in the implementation plan. Step 0 raw data verification passes. (Note: if the attached dataset is a different version, the hash will not match and the assertion will catch it)."))
 
@@ -475,9 +489,10 @@ print("numpy version:       ", numpy.__version__)"""))
 os.chdir("/content")
 
 REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
+BRANCH = "full-corpus"
 
 !rm -rf /content/NLP_Assignment1
-!git clone {REPO_URL} /content/NLP_Assignment1
+!git clone -b {BRANCH} {REPO_URL} /content/NLP_Assignment1
 %cd /content/NLP_Assignment1
 !git log -1 --oneline"""))
 
