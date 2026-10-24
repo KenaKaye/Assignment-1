@@ -49,7 +49,9 @@ from scripts.common import (
 from scripts.kn_lib import KneserNeyModel
 
 STAGE_NAME = "12_q3_extrinsic"
-SPLIT_FILE = DATA_DIR / "split_indices_seed42_v2.json"
+SPLIT_FILE = DATA_DIR / "split_indices_seed42.json"
+if not SPLIT_FILE.exists() and (DATA_DIR / "split_indices_seed42_v2.json").exists():
+    SPLIT_FILE = DATA_DIR / "split_indices_seed42_v2.json"
 TOKENS_FILE = DATA_DIR / "tokens.npy"
 STARTS_FILE = DATA_DIR / "sentence_starts.npy"
 TRAIN_COUNTS_DIR = DATA_DIR / "counts" / "train_seed42"

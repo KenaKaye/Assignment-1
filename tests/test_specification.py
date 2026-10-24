@@ -44,7 +44,9 @@ scripts_02 = importlib.import_module("scripts.02_build_cleaned")
 clean_stream = scripts_02.clean_stream
 
 scripts_06 = importlib.import_module("scripts.06_split")
-generate_split_v2 = scripts_06.generate_split_v2
+build_split = scripts_06.build_split
+greedy_pick = scripts_06.greedy_pick
+line_group_ids = scripts_06.line_group_ids
 
 
 # ---------------------------------------------------------------------------
@@ -283,34 +285,54 @@ def test_lut():
 # ---------------------------------------------------------------------------
 # Test 7: test_split_v2
 # ---------------------------------------------------------------------------
-def test_split_v2():
-    """Verify split v2 partitions disjointly and matches legacy test split."""
-    total = 1000
-    seed = 42
+def test_split_v2(tmp_path: Path):
+    """Verify text-group split partitions cleanly, removes duplicate sentence leakage, and covers all sentences."""
+    # Create toy cleaned sentences with duplicates
+    sentences = [
+        "ኢትዮጵያ ታሪካዊት ሀገር ናት።\n",  # group 0, dup 1
+        "ሰላም ለሁላችን ይሁን።\n",        # group 1
+        "ኢትዮጵያ ታሪካዊት ሀገር ናት።\n",  # group 0, dup 2
+        "ትምህርት የህይወት መሰረት ነው።\n", # group 2
+        "ሰላም ለሁላችን ይሁን።\n",        # group 1, dup 2
+        "አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት።\n", # group 3
+        "ጥሩ ስራ ተሰርቷል።\n",          # group 4
+        "ኢትዮጵያ ታሪካዊት ሀገር ናት።\n",  # group 0, dup 3
+        "እውቀት ኃይል ነው።\n",          # group 5
+        "አመሰግናለሁ።\n",                # group 6
+    ] * 20  # 200 sentences total
+    cleaned_file = tmp_path / "toy_cleaned.txt"
+    with open(cleaned_file, "w", encoding="utf-8") as f:
+        f.writelines(sentences)
 
-    # Simulate legacy split
-    rng = np.random.default_rng(seed)
-    shuffled = rng.permutation(total)
-    legacy_test = np.sort(shuffled[int(round(0.9 * total)):])
-    legacy_split = {"test": legacy_test.tolist()}
+    inv, sizes = line_group_ids(cleaned_file)
+    n = len(inv)
+    assert n == 200
+    assert len(sizes) == 7  # 7 unique sentence texts
 
-    split_v2 = generate_split_v2(total, seed=seed, legacy_split=legacy_split)
+    split = build_split(seed=42, inv=inv, sizes=sizes, n=n)
 
-    test_v2 = np.array(split_v2["test"], dtype=np.int64)
-    tune_v2 = np.array(split_v2["tune"], dtype=np.int64)
-    train_core_v2 = np.array(split_v2["train_core"], dtype=np.int64)
+    test_idx = np.array(split["test"], dtype=np.int64)
+    tune_idx = np.array(split["tune"], dtype=np.int64)
+    train_core_idx = np.array(split["train_core"], dtype=np.int64)
+    train_full_idx = np.array(split["train_full"], dtype=np.int64)
 
-    # Invariance check
-    np.testing.assert_array_equal(test_v2, legacy_test)
+    # 1. Total coverage & disjointness
+    assert len(test_idx) + len(train_full_idx) == n
+    all_indices = np.sort(np.concatenate([train_core_idx, tune_idx, test_idx]))
+    np.testing.assert_array_equal(all_indices, np.arange(n))
 
-    # Disjointness & Coverage
-    all_indices = np.sort(np.concatenate([train_core_v2, tune_v2, test_v2]))
-    np.testing.assert_array_equal(all_indices, np.arange(total))
+    # 2. train_full partitioned by train_core and tune
+    train_combined = np.sort(np.concatenate([train_core_idx, tune_idx]))
+    np.testing.assert_array_equal(train_combined, train_full_idx)
 
-    # Proportions
-    assert len(test_v2) == 100
-    assert len(tune_v2) == 50
-    assert len(train_core_v2) == 850
+    # 3. Zero text leakage: no sentence text appears on both test and train sides
+    test_text_hashes = inv[test_idx]
+    train_text_hashes = inv[train_full_idx]
+    assert not np.any(np.isin(test_text_hashes, train_text_hashes))
+
+    # 4. Same for tune and test
+    tune_text_hashes = inv[tune_idx]
+    assert not np.any(np.isin(tune_text_hashes, test_text_hashes))
 
 
 # ---------------------------------------------------------------------------

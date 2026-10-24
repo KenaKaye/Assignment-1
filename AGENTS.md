@@ -97,13 +97,13 @@ Each step has a verification check in the plan. Do not start the next step until
 
 ### B3. Prevent Data Leakage
 
-- Split the corpus by sentence into train and test sets once, using `SEED = 42`, and save the line indices to `data/split_indices_seed42_v2.json`. Reuse the saved split. Do not re-split silently.
+- Split the corpus by sentence **text group** into train and test sets once, using `SEED = 42`, and save the line indices to `data/split_indices_seed42.json`. Identical sentences form one group and go to the same side, so no test sentence text appears in training. The 10% test and 5% tune sets are filled greedily from groups in a seeded random order (rule in `scripts/06_split.py`). Reuse the saved split. Do not re-split silently. The earlier 100,000-sentence prefix split (`data/archive_100k_prefix/`) is retired and must not be used.
 - A 5% tuning set `tune` is carved out of the training split *before counting*, leaving `train_core` (~85%) for training counts (D2).
 - Build n-gram counts from `train_core` only when evaluating in Q2, Q3, and Q4. The application uses the seed-42 training-split counts as its evaluation.
 - Seed-7 stability evaluation in Q2 uses its own training counts built from its own independent `train_core` split (D4).
 - Words that occur $\le 1$ time in `train_core` are mapped to `<UNK>` via the training LUT (`lut_train_seed42.npy`, `lut_train_seed7.npy`). Test words not in the training vocabulary are scored as `<UNK>`. Original global IDs are preserved.
 - Never tune any threshold (for example, τ in Q3) on the test split. Tune it strictly on the `tune` set (which has 0 sentence overlap with training counts) and then apply it once to the test set.
-- No sampling of the data. Q2, Q3, and Q4 evaluate on the full held-out test splits without sampling exceptions (D3).
+- No sampling of the data. Q2, Q3, and Q4 evaluate on the full held-out test splits without sampling exceptions (D3). The Q4 runtime exception is withdrawn.
 - Never use test sentences to choose smoothing parameters, stopwords, or the usability threshold.
 
 ### B4. Reproducibility
