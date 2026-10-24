@@ -10,18 +10,26 @@
 
 The following architectural and methodological decisions govern this implementation:
 
-| Decision | Area | Specification | Rationale |
-| :--- | :--- | :--- | :--- |
-| **D1** | **Heavy Execution** | Heavy stages run on **Kaggle CPU** or **Google Colab**, detected dynamically via `require_heavy_runtime()`. | Allows 30 GiB RAM execution on Kaggle while maintaining Colab portability. PC executes light stages only. |
-| **D2** | **Q3 Tuning Set** | 5% tuning set `tune` carved out of training partition *before counting*; `train_core` counts exclude it. | Prevents data leakage where tuning sentences would be scored using counts that contain them. |
-| **D3** | **Zero Sampling** | Full held-out sets evaluated across Q2, Q3, and Q4. | High-performance vectorized scoring in `kn_lib.py` and `ngram_lib.py` makes evaluating 500k test sentences efficient. |
-| **D4** | **Q2 Seed Stability** | Seed 7 uses independent `train_core` counts built from its own split. | Seed-7 test sentences must not be scored against seed-42 counts containing ~90% of those sentences. |
-| **D5** | **Sentence Punctuation** | Kept sentence-final marks (`።`, `?`, `!`); `፡፡+` normalized to `።`. | Preserves grammatical boundaries required for Q1.8 verbatim matching and sentence reconstruction. |
-| **D6** | **Memory Budget** | Dynamically detected from cgroups/meminfo (`budget = 0.90 * total - 1024 MB`). | Kaggle provides 30 GiB RAM, Colab standard ~12.7 GB. Hard-coded caps are eliminated. |
-| **D7** | **Q4 Metric Naming** | Named **MRR@5** (`mrr_at_5`). | Accurately describes that candidates ranked below rank 5 score reciprocal rank 0. |
-| **D8** | **Vocabulary IDs** | Single global ID space with int32 lookup tables (`lut_train_*.npy`) for `<UNK>`. | Eliminates ID desynchronization between full vocabulary and training partitions. |
+| Decision     | Area                           | Specification                                                                                                             | Rationale                                                                                                                 |
+| :----------- | :----------------------------- | :------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------ |
+| **D1** | **Heavy Execution**      | Heavy stages run on **Kaggle CPU** or **Google Colab**, detected dynamically via `require_heavy_runtime()`. | Allows 30 GiB RAM execution on Kaggle while maintaining Colab portability. PC executes light stages only.                 |
+| **D2** | **Q3 Tuning Set**        | 5% tuning set `tune` carved out of training partition *before counting*; `train_core` counts exclude it.            | Prevents data leakage where tuning sentences would be scored using counts that contain them.                              |
+| **D3** | **Zero Sampling**        | Full held-out sets evaluated across Q2, Q3, and Q4.                                                                       | High-performance vectorized scoring in `kn_lib.py` and `ngram_lib.py` makes evaluating 500k test sentences efficient. |
+| **D4** | **Q2 Seed Stability**    | Seed 7 uses independent `train_core` counts built from its own split.                                                   | Seed-7 test sentences must not be scored against seed-42 counts containing ~90% of those sentences.                       |
+| **D5** | **Sentence Punctuation** | Kept sentence-final marks (`።`, `?`, `!`); `፡፡+` normalized to `።`.                                         | Preserves grammatical boundaries required for Q1.8 verbatim matching and sentence reconstruction.                         |
+| **D6** | **Memory Budget**        | Dynamically detected from cgroups/meminfo (`budget = 0.90 * total - 1024 MB`).                                          | Kaggle provides 30 GiB RAM, Colab standard ~12.7 GB. Hard-coded caps are eliminated.                                      |
+| **D7** | **Q4 Metric Naming**     | Named **MRR@5** (`mrr_at_5`).                                                                                     | Accurately describes that candidates ranked below rank 5 score reciprocal rank 0.                                         |
+| **D8** | **Vocabulary IDs**       | Single global ID space with int32 lookup tables (`lut_train_*.npy`) for `<UNK>`.                                      | Eliminates ID desynchronization between full vocabulary and training partitions.                                          |
+
+### 2026-10-24 Amendment & Grouped Splitting
+
+- **Retirement of Prefix Splits:** Legacy seed-42 and seed-7 splits derived from the first 100,000 sentences were retired and moved to `data/archive_100k_prefix/`.
+- **Zero-Leakage Grouped Splitting (Stage 06):** Identical sentence texts form a single group. All occurrences of any sentence are assigned strictly to train or test (no duplicate sentence text appears in both train and test). Test target is 10% and tuning target is 5% of all sentences, filled greedily in seeded order (`np.random.default_rng(seed)`).
+- **Environment & NumPy Pin:** Python 3.12, NumPy pinned to `2.1.3` (required for deterministic RNG permutation).
+- **No Sampling:** Full held-out splits evaluated across Q2, Q3, and Q4. Q4 runtime exception is withdrawn.
 
 ### Punctuation & Boundary Rules
+
 - **Sentence Boundaries:** Ethiopic full stop `።` (U+1362), question mark `?`, exclamation mark `!`, and repeated colons `፡፡+` (normalized to `።`).
 - **Internal Non-Boundary Marks:** Word separator `፡` (U+1361) and comma `፣` (U+1363) are retained as internal text tokens, NOT sentence boundaries.
   - *Sample 1 (Word divider):* `ኢትዮጵያ፡የረጅም፡ዘመን፡ታሪክ፡ያላት፡ሀገር፡ናት።` (`፡` separates tokens within a sentence).
@@ -43,18 +51,18 @@ The following architectural and methodological decisions govern this implementat
 
 The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 encoding prior to language modeling:
 
-| Metric | Measured Value |
-| :--- | :--- |
-| **File Name** | `GPAC.txt` |
-| **File Size** | **1,063,098,071 bytes** (1,013.85 MB) |
-| **SHA-256 Checksum** | `977706859188f7598ca97a29d7203d86926c11ede591fba31915c74ae9eabcfa` |
-| **Encoding** | Strict UTF-8 without decoding errors |
-| **Content Integrity** | Clean Amharic text stream without HTML tags or truncated endings |
-| **Total Characters** | 424,397,739 characters |
-| **Non-Space Characters** | 325,302,788 characters |
-| **Ethiopic Letters Only (U+1200 - U+135A)** | Reported in Stage 03 verification (> 80% benchmark) |
-| **Ethiopic Characters with Punctuation (U+1200 - U+137F)** | 319,350,166 characters (98.17% of non-space text) |
-| **Sentence Delimiters** | Sentence punctuation (`።`, `?`, `!`, `፡፡+`) |
+| Metric                                                           | Measured Value                                                       |
+| :--------------------------------------------------------------- | :------------------------------------------------------------------- |
+| **File Name**                                              | `GPAC.txt`                                                         |
+| **File Size**                                              | **1,063,098,071 bytes** (1,013.85 MB)                          |
+| **SHA-256 Checksum**                                       | `977706859188f7598ca97a29d7203d86926c11ede591fba31915c74ae9eabcfa` |
+| **Encoding**                                               | Strict UTF-8 without decoding errors                                 |
+| **Content Integrity**                                      | Clean Amharic text stream without HTML tags or truncated endings     |
+| **Total Characters**                                       | 424,397,739 characters                                               |
+| **Non-Space Characters**                                   | 325,302,788 characters                                               |
+| **Ethiopic Letters Only (U+1200 - U+135A)**                | Reported in Stage 03 verification (> 80% benchmark)                  |
+| **Ethiopic Characters with Punctuation (U+1200 - U+137F)** | 319,350,166 characters (98.17% of non-space text)                    |
+| **Sentence Delimiters**                                    | Sentence punctuation (`።`, `?`, `!`, `፡፡+`)               |
 
 ---
 
@@ -76,7 +84,6 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
 ---
 
 ## 4. Question 1 Key Results Summary
-
 
 * **Q1.1 Preprocessing & Statistics:**
   * Sample: 100,000 complete Amharic sentences, 1,273,330 word tokens, 200,310 vocabulary size.
@@ -177,9 +184,9 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
   * **Mean Reciprocal Rank (MRR):** **0.1484** (Near 0.15 target).
   * **Response Latency:** **0.259 ms** (Benchmark target $< 1,000$ ms $\to$ **PASS**, thousands of times faster).
 * **Interface Loading Mechanisms & Model Sources:**
+
   * **CLI Interface (`app/main.py`):** Loads sentences directly from the raw corpus (`data/GPAC.txt`) and training split (`data/split_indices_seed42.json`), compiling all n-gram counts and candidate tables dynamically into RAM at startup (~10–12s initialization).
   * **Web Interface (`FastAPI` backend $\to$ `Next.js` frontend):** Loads the pre-compiled, serialized binary model artifact (`models/ngram_predictor.pkl`) directly into memory in ~3–4s, bypassing raw corpus tokenization and streaming on each startup (falls back to training from `data/GPAC.txt` only if the `.pkl` artifact is deleted).
-
 * **How to Run the Interactive CLI Application:**
 
   ```bash
@@ -188,7 +195,6 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
   python app/cli.py
   ```
   Allows entering arbitrary Amharic prefixes, selecting candidate next words (1 to 5), or typing custom continuation words in an interactive loop.
-
 * **How to Run the Next.js Web Application:**
 
   ```bash

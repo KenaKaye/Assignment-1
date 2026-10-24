@@ -62,7 +62,9 @@ def main() -> None:
     require_heavy_runtime(stage_name)
 
     target_dir = DATA_DIR / "counts" / f"train_seed{seed}"
-    split_file = DATA_DIR / f"split_indices_seed{seed}_v2.json"
+    split_file = DATA_DIR / f"split_indices_seed{seed}.json"
+    if not split_file.exists() and (DATA_DIR / f"split_indices_seed{seed}_v2.json").exists():
+        split_file = DATA_DIR / f"split_indices_seed{seed}_v2.json"
     lut_file = target_dir / f"lut_train_seed{seed}.npy"
     vocab_train_file = target_dir / "vocab_train.tsv"
 

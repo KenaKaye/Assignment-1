@@ -32,8 +32,13 @@ from scripts.common import (
 from scripts.kn_lib import KneserNeyModel
 
 STAGE_NAME = "11_q2_perplexity"
-SPLIT_42_FILE = DATA_DIR / "split_indices_seed42_v2.json"
-SPLIT_7_FILE = DATA_DIR / "split_indices_seed7_v2.json"
+SPLIT_42_FILE = DATA_DIR / "split_indices_seed42.json"
+if not SPLIT_42_FILE.exists() and (DATA_DIR / "split_indices_seed42_v2.json").exists():
+    SPLIT_42_FILE = DATA_DIR / "split_indices_seed42_v2.json"
+
+SPLIT_7_FILE = DATA_DIR / "split_indices_seed7.json"
+if not SPLIT_7_FILE.exists() and (DATA_DIR / "split_indices_seed7_v2.json").exists():
+    SPLIT_7_FILE = DATA_DIR / "split_indices_seed7_v2.json"
 TOKENS_FILE = DATA_DIR / "tokens.npy"
 STARTS_FILE = DATA_DIR / "sentence_starts.npy"
 RESULTS_FILE = RESULTS_DIR / "q2_perplexity.json"
