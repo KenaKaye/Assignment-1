@@ -56,6 +56,23 @@ def write_artifact_list() -> list[str]:
     """Write canonical artifact list to data/artifact_list.json."""
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     out_file = DATA_DIR / "artifact_list.json"
+
+    # Ensure results/run_log.jsonl exists
+    run_log = REPO_ROOT / "results" / "run_log.jsonl"
+    if not run_log.exists():
+        run_log.parent.mkdir(parents=True, exist_ok=True)
+        run_log.touch()
+
+    # Alias stage_times across Colab and Kaggle environments
+    colab_times = REPO_ROOT / "results" / "colab_stage_times.json"
+    kaggle_times = REPO_ROOT / "results" / "kaggle_stage_times.json"
+    if colab_times.exists() and not kaggle_times.exists():
+        import shutil
+        shutil.copy2(colab_times, kaggle_times)
+    elif kaggle_times.exists() and not colab_times.exists():
+        import shutil
+        shutil.copy2(kaggle_times, colab_times)
+
     with open(out_file, "w", encoding="utf-8") as f:
         json.dump(CANONICAL_ARTIFACTS, f, indent=2)
     return CANONICAL_ARTIFACTS
