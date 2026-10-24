@@ -140,8 +140,9 @@ def main() -> None:
     lut[UNK_ID] = UNK_ID
 
     # Save LUT
-    tmp_lut = lut_file.with_suffix(".npy.tmp")
-    np.save(tmp_lut, lut)
+    tmp_lut = lut_file.with_name(f"{lut_file.stem}.tmp.npy")
+    with open(tmp_lut, "wb") as f:
+        np.save(f, lut)
     tmp_lut.replace(lut_file)
     print(f"Saved {lut_file.name}")
 
@@ -213,10 +214,12 @@ def main() -> None:
 
         assert counts.sum() == total_train_tokens, f"Order {n} sum mismatch: {counts.sum()} != {total_train_tokens}"
 
-        tmp_ngrams = ngrams_file.with_suffix(".npy.tmp")
-        tmp_counts = counts_file.with_suffix(".npy.tmp")
-        np.save(tmp_ngrams, unique_ngrams)
-        np.save(tmp_counts, counts)
+        tmp_ngrams = ngrams_file.with_name(f"{ngrams_file.stem}.tmp.npy")
+        tmp_counts = counts_file.with_name(f"{counts_file.stem}.tmp.npy")
+        with open(tmp_ngrams, "wb") as f:
+            np.save(f, unique_ngrams)
+        with open(tmp_counts, "wb") as f:
+            np.save(f, counts)
         tmp_ngrams.replace(ngrams_file)
         tmp_counts.replace(counts_file)
 
