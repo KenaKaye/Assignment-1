@@ -246,13 +246,13 @@ def main() -> None:
         print(f"\nEvaluating Order n = {n}...")
 
         # 1. Score tuning set and tune tau
-        tune_logp, _ = kn_model.score_sequence(tune_toks, tune_pos, order=n)
+        tune_logp = kn_model.score_sequence(tune_toks, tune_pos, order=n)[0]
         tune_scores = np.bincount(tune_pids, weights=tune_logp, minlength=len(tune_labels)) / tune_lens
         best_tau, tune_f1 = tune_tau(tune_scores, tune_labels)
         print(f"  Tuned tau on tuning set: {best_tau:.4f} (Tuning F1: {tune_f1:.4f})")
 
         # 2. Score test set
-        test_logp, _ = kn_model.score_sequence(test_toks, test_pos, order=n)
+        test_logp = kn_model.score_sequence(test_toks, test_pos, order=n)[0]
         test_scores = np.bincount(test_pids, weights=test_logp, minlength=len(test_labels)) / test_lens
         test_preds = (test_scores >= best_tau).astype(int)
 

@@ -100,8 +100,7 @@ def evaluate_seed_split(
 
     for n in range(1, 5):
         t0 = time.time()
-        print(f"Scoring test sequence for order {n}...")
-        logp_arr, _ = kn_model.score_sequence(test_tokens, test_pos, order=n)
+        logp_arr = kn_model.score_sequence(test_tokens, test_pos, order=n)[0]
         sum_logp = float(logp_arr.sum())
         ppl = math.exp(-sum_logp / total_test_tokens)
         elapsed_n = round(time.time() - t0, 2)

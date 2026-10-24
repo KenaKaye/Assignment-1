@@ -272,9 +272,9 @@ def main() -> None:
             pos_arr = np.arange(length, dtype=np.int64)
 
             for n in range(1, 5):
-                logp_arr, _ = kn_model.score_sequence(tok_arr, pos_arr, order=n)
-                logp = float(logp_arr.sum())
-                per_token = logp / length
+                logp_arr, sent_logp, per_tok = kn_model.score_sequence(tok_arr, pos_arr, order=n)
+                logp = float(sent_logp[0])
+                per_token = float(per_tok[0])
                 writer.writerow([sent_text, cat, n, f"{logp:.4f}", f"{per_token:.4f}", is_verb])
                 print(f"  [{cat}] n={n} | LogP: {logp:8.4f} | Per-token: {per_token:8.4f} | Verbatim: {is_verb} | {sent_text}")
 
