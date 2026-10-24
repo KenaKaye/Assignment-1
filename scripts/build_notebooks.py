@@ -105,16 +105,19 @@ print("python                =", platform.python_version())"""))
 
     cells.append(md_cell("The memory limit printed here sets the runtime budget. The stages compute `budget_mb = total_mb * 0.90 - 1024` (90% of available RAM, minus 1 GiB for the interpreter margin)."))
 
-    # Cell 3: Install
-    cells.append(code_cell("""!pip install -q gdown
-import sklearn, numpy
+    # Cell 3: Dependencies & Environment
+    cells.append(code_cell("""import sklearn, numpy
 print("scikit-learn version:", sklearn.__version__)
 print("numpy version:       ", numpy.__version__)"""))
 
-    cells.append(md_cell("gdown fetches the raw GPAC corpus. scikit-learn is required for Q3 extrinsic metrics and ROC computation; numpy provides vectorization."))
+    cells.append(md_cell("scikit-learn is required for Q3 extrinsic metrics and ROC computation; numpy provides vectorization."))
 
     # Cell 4: Clone Repository
-    cells.append(code_cell("""# Set the repository URL (public HTTPS or with Kaggle Secret token for private repo)
+    cells.append(code_cell("""import os
+
+# Start from a directory that always exists before removing anything, avoiding getcwd errors
+os.chdir("/kaggle/working")
+
 REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
 
 !rm -rf /kaggle/working/NLP_Assignment1
@@ -124,11 +127,20 @@ REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
 
     cells.append(md_cell("The commit hash printed above represents the exact code version executing this build run. Record this commit hash in `README.md`."))
 
-    # Cell 5: Fetch and verify raw corpus
-    cells.append(code_cell("""!mkdir -p data
-!gdown 1jEOAORylTBAiNKes_JerD6gFF7cnLFyr -O data/GPAC.txt
+    # Cell 5: Attach and verify raw corpus from Kaggle dataset
+    cells.append(code_cell("""import os, shutil, glob, hashlib
 
-import hashlib
+# Start from a directory that always exists, then enter the repository.
+os.chdir("/kaggle/working")
+os.chdir("/kaggle/working/NLP_Assignment1")
+os.makedirs("data", exist_ok=True)
+
+# Use the Kaggle dataset you attached (Datasets -> New Dataset -> GPAC.txt). No Google Drive call.
+candidates = glob.glob("/kaggle/input/*/GPAC.txt")
+if not candidates:
+    raise SystemExit("GPAC.txt not found under /kaggle/input. Attach the dataset first.")
+shutil.copy(candidates[0], "data/GPAC.txt")
+
 h = hashlib.sha256()
 with open("data/GPAC.txt", "rb") as f:
     for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -136,14 +148,15 @@ with open("data/GPAC.txt", "rb") as f:
 
 EXPECTED = "977706859188f7598ca97a29d7203d86926c11ede591fba31915c74ae9eabcfa"
 assert h.hexdigest() == EXPECTED, f"Raw corpus hash mismatch: {h.hexdigest()} vs {EXPECTED}"
-print("GPAC.txt SHA-256 matches authoritative hash:")
-print(h.hexdigest())"""))
+print("GPAC.txt SHA-256 matches:", h.hexdigest())"""))
 
-    cells.append(md_cell("The raw corpus hash strictly matches the authoritative value recorded in the implementation plan. Step 0 raw data verification passes."))
+    cells.append(md_cell("The raw corpus hash strictly matches the authoritative value recorded in the implementation plan. Step 0 raw data verification passes. (Note: if the attached dataset is a different version, the hash will not match and the assertion will catch it)."))
 
     # Cell 6: Reset stale outputs
-    cells.append(code_cell("""import shutil, os
+    cells.append(code_cell("""import os, shutil
 from pathlib import Path
+
+os.chdir("/kaggle/working/NLP_Assignment1")
 
 # Set stages to reset if forced re-run is required (e.g. ['02_build_cleaned'])
 RESET_STAGES = []
@@ -180,6 +193,8 @@ else:
 
     # Cell 7: Run pipeline
     cells.append(code_cell("""import subprocess, time, sys, os, json
+
+os.chdir("/kaggle/working/NLP_Assignment1")
 
 STAGES = [
     ["scripts/01_assess_raw.py"],
@@ -227,9 +242,11 @@ print("\\n[PIPELINE COMPLETE] All 12 stages finished successfully!")"""))
     cells.append(md_cell("Every pipeline stage finished with exit code 0. Manifest checkpoints ensure that re-running this cell will safely skip already verified stages."))
 
     # Cell 8: Gate checks
-    cells.append(code_cell("""import json
+    cells.append(code_cell("""import os, json
 import numpy as np
 import pytest
+
+os.chdir("/kaggle/working/NLP_Assignment1")
 
 print("--- Running Local Unit Test Suite ---")
 !python -m pytest tests/
@@ -271,8 +288,10 @@ print("\\n[ALL GATE CHECKS PASSED]")"""))
     cells.append(md_cell("All gate checks pass: unit test suite passes, Ethiopic letter share exceeds 80%, Q1.3 probability sums equal 1.0 within 1e-9, and Q2 perplexity bigram reduction target is satisfied."))
 
     # Cell 9: Results summary
-    cells.append(code_cell("""import pandas as pd
-import json
+    cells.append(code_cell("""import os, json
+import pandas as pd
+
+os.chdir("/kaggle/working/NLP_Assignment1")
 
 print("=== Q1 Top 5 Bigrams (Q1.3) ===")
 print(pd.read_csv("results/q1_top10_n2.csv").head(5).to_string(index=False))
@@ -308,6 +327,8 @@ for s in q4["example_prompt_output"]["suggestions"]:
     # Cell 10: Export artifacts
     cells.append(code_cell("""import os, shutil, json, sys
 
+os.chdir("/kaggle/working/NLP_Assignment1")
+
 # Ensure data/artifact_list.json is created
 sys.path.insert(0, ".")
 from scripts.artifacts import write_artifact_list
@@ -340,7 +361,11 @@ print("Created /kaggle/working/nlp_assignment1_artifacts.zip")"""))
     cells.append(md_cell("The export directory and zip bundle contain only the canonical 'Yes' artifacts. Heavy training token arrays remain on the server."))
 
     # Cell 11: Checksums
-    cells.append(code_cell("""for fname in ["checksums.json", "manifest.json", "artifact_list.json"]:
+    cells.append(code_cell("""import os, shutil
+
+os.chdir("/kaggle/working/NLP_Assignment1")
+
+for fname in ["checksums.json", "manifest.json", "artifact_list.json"]:
     p = os.path.join("data", fname)
     if os.path.exists(p):
         shutil.copy2(p, os.path.join(EXPORT, "data", fname))
@@ -423,7 +448,12 @@ print("numpy version:       ", numpy.__version__)"""))
 
     cells.append(md_cell("Dependencies verified."))
 
-    cells.append(code_cell("""# Set the repository URL
+    # Cell 4: Clone Repository
+    cells.append(code_cell("""import os
+
+# Start from a directory that always exists, avoiding getcwd errors
+os.chdir("/content")
+
 REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
 
 !rm -rf /content/NLP_Assignment1
@@ -433,12 +463,46 @@ REPO_URL = "https://github.com/KenaKaye/Assignment-1.git"
 
     cells.append(md_cell("Record the commit printed here in `README.md`."))
 
-    cells.append(code_cell("""!mkdir -p data
-!gdown 1jEOAORylTBAiNKes_JerD6gFF7cnLFyr -O data/GPAC.txt
+    # Cell 5: Fetch or copy raw corpus and verify
+    cells.append(code_cell("""import os, shutil, glob, hashlib
 
-import hashlib
+# Ensure we are in the repository directory
+os.chdir("/content")
+os.chdir("/content/NLP_Assignment1")
+os.makedirs("data", exist_ok=True)
+
+target_file = "data/GPAC.txt"
+
+# 1. Check if user mounted Google Drive or uploaded directly to /content
+content_candidates = glob.glob("/content/GPAC.txt")
+drive_candidates = glob.glob("/content/drive/*/**/GPAC.txt", recursive=True)
+all_candidates = content_candidates + drive_candidates
+
+if all_candidates and not os.path.exists(target_file):
+    print(f"Found GPAC.txt at {all_candidates[0]}. Copying to data/GPAC.txt...")
+    shutil.copy(all_candidates[0], target_file)
+
+# 2. If not found locally, attempt gdown
+if not os.path.exists(target_file) or os.path.getsize(target_file) == 0:
+    print("Attempting download via gdown...")
+    !gdown 1jEOAORylTBAiNKes_JerD6gFF7cnLFyr -O data/GPAC.txt
+
+# 3. If still missing, explain how to mount Drive or upload
+if not os.path.exists(target_file) or os.path.getsize(target_file) == 0:
+    raise SystemExit(
+        "GPAC.txt could not be retrieved due to Google Drive link rate limits.\\n"
+        "To resolve:\\n"
+        "1. Mount your Google Drive: Run in a cell:\\n"
+        "   from google.colab import drive\\n"
+        "   drive.mount('/content/drive')\\n"
+        "   (Place GPAC.txt in your Google Drive, then re-run this cell)\\n"
+        "OR\\n"
+        "2. Drag and drop GPAC.txt into Colab's file browser pane under /content/."
+    )
+
+# 4. SHA-256 Verification
 h = hashlib.sha256()
-with open("data/GPAC.txt", "rb") as f:
+with open(target_file, "rb") as f:
     for chunk in iter(lambda: f.read(1 << 20), b""):
         h.update(chunk)
 
@@ -447,10 +511,13 @@ assert h.hexdigest() == EXPECTED, f"Raw corpus hash mismatch: {h.hexdigest()} vs
 print("GPAC.txt SHA-256 matches authoritative hash:")
 print(h.hexdigest())"""))
 
-    cells.append(md_cell("The raw corpus hash matches the value in the plan."))
+    cells.append(md_cell("The raw corpus hash strictly matches the authoritative value recorded in the implementation plan. Step 0 raw data verification passes."))
 
-    cells.append(code_cell("""import shutil, os
+    # Cell 6: Reset stale outputs
+    cells.append(code_cell("""import os, shutil
 from pathlib import Path
+
+os.chdir("/content/NLP_Assignment1")
 
 RESET_STAGES = []
 
@@ -482,7 +549,10 @@ else:
 
     cells.append(md_cell("Old outputs verified."))
 
+    # Cell 7: Run pipeline
     cells.append(code_cell("""import subprocess, time, sys, os, json
+
+os.chdir("/content/NLP_Assignment1")
 
 STAGES = [
     ["scripts/01_assess_raw.py"],
@@ -529,8 +599,11 @@ print("\\n[PIPELINE COMPLETE] All 12 stages finished successfully!")"""))
 
     cells.append(md_cell("Pipeline execution completed."))
 
-    cells.append(code_cell("""import json
+    # Cell 8: Gate checks
+    cells.append(code_cell("""import os, json
 import numpy as np
+
+os.chdir("/content/NLP_Assignment1")
 
 print("--- Running Local Unit Test Suite ---")
 !python -m pytest tests/
@@ -566,8 +639,11 @@ print("\\n[ALL GATE CHECKS PASSED]")"""))
 
     cells.append(md_cell("All gate checks pass."))
 
-    cells.append(code_cell("""import pandas as pd
-import json
+    # Cell 9: Results summary
+    cells.append(code_cell("""import os, json
+import pandas as pd
+
+os.chdir("/content/NLP_Assignment1")
 
 print("=== Q1 Top 5 Bigrams (Q1.3) ===")
 print(pd.read_csv("results/q1_top10_n2.csv").head(5).to_string(index=False))
@@ -600,7 +676,10 @@ for s in q4["example_prompt_output"]["suggestions"]:
 
     cells.append(md_cell("Results summary displayed."))
 
+    # Cell 10: Export artifacts
     cells.append(code_cell("""import os, shutil, json, sys
+
+os.chdir("/content/NLP_Assignment1")
 
 sys.path.insert(0, ".")
 from scripts.artifacts import write_artifact_list
@@ -628,7 +707,12 @@ print("Created /content/nlp_assignment1_artifacts.zip")"""))
 
     cells.append(md_cell("Artifacts bundled into zip."))
 
-    cells.append(code_cell("""for fname in ["checksums.json", "manifest.json", "artifact_list.json"]:
+    # Cell 11: Checksums
+    cells.append(code_cell("""import os, shutil
+
+os.chdir("/content/NLP_Assignment1")
+
+for fname in ["checksums.json", "manifest.json", "artifact_list.json"]:
     p = os.path.join("data", fname)
     if os.path.exists(p):
         shutil.copy2(p, os.path.join(EXPORT, "data", fname))
