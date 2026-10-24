@@ -127,12 +127,14 @@ def main() -> None:
         assert unique_ngrams.dtype == np.int32, f"Expected int32 ngrams array, got {unique_ngrams.dtype}"
         assert counts.dtype == np.int64, f"Expected int64 counts array, got {counts.dtype}"
 
-        tmp_ngrams = ngrams_file.with_suffix(".npy.tmp")
-        tmp_counts = counts_file.with_suffix(".npy.tmp")
+        tmp_ngrams = ngrams_file.with_name(f"{ngrams_file.stem}.tmp.npy")
+        tmp_counts = counts_file.with_name(f"{counts_file.stem}.tmp.npy")
 
         print(f"  Saving {ngrams_file.name} (shape {unique_ngrams.shape}) and {counts_file.name}...")
-        np.save(tmp_ngrams, unique_ngrams)
-        np.save(tmp_counts, counts)
+        with open(tmp_ngrams, "wb") as f:
+            np.save(f, unique_ngrams)
+        with open(tmp_counts, "wb") as f:
+            np.save(f, counts)
         tmp_ngrams.replace(ngrams_file)
         tmp_counts.replace(counts_file)
 
