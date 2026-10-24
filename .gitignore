@@ -1,9 +1,16 @@
-# Large corpus text files
+# Large corpus text and archive files
 *.txt
 *.TXT
+*.gz
+*.GZ
+*.tar.gz
+*.zip
+*.ZIP
 data/*.txt
 data/*.TXT
-data/GPAC.txt
+data/*.gz
+data/GPAC.txt*
+data/compress.py
 Docs/
 
 # Ensure data directory and metadata are tracked
