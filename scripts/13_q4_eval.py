@@ -312,8 +312,9 @@ def main() -> None:
         evaluated_contexts.append(list(words[:-1]))
         evaluated_targets_list.append(target)
 
+    total_candidates = len(test_indices)
     evaluated_targets = np.array(evaluated_targets_list, dtype=np.int32)
-    print(f"Test Set Summary: {len(test_indices):,} candidates | {len(evaluated_targets):,} evaluated | {skipped_unk_targets:,} skipped (<UNK>)")
+    print(f"Test Set Summary: {total_candidates:,} candidates | {len(evaluated_targets):,} evaluated | {skipped_unk_targets:,} skipped (<UNK>)")
 
     del tokens, starts, ends, test_indices, test_starts, test_lengths, evaluated_targets_list
     import gc
@@ -392,7 +393,7 @@ def main() -> None:
         "target_counts": {
             "evaluated_targets": len(evaluated_targets),
             "skipped_unk_targets": skipped_unk_targets,
-            "total_candidate_sentences": len(test_indices),
+            "total_candidate_sentences": total_candidates,
         },
         "metrics": {
             "one_word_context": res_one_word,
