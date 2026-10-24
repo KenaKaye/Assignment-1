@@ -80,6 +80,44 @@ def get_top50_unigrams(kn_model: KneserNeyModel) -> np.ndarray:
     return valid_words[sorted_idx]
 
 
+def _score_unique_batch(
+    batch_u_indices: list[int],
+    batch_cands: list[np.ndarray],
+    unique_contexts: np.ndarray,
+    context_len: int,
+    order: int,
+    kn_model: KneserNeyModel,
+    out_top5: np.ndarray,
+) -> None:
+    b_u = len(batch_u_indices)
+    if b_u == 0:
+        return
+    item_repeats = np.array([len(c) for c in batch_cands], dtype=np.int32)
+    all_cands = np.concatenate(batch_cands)
+    if len(all_cands) == 0:
+        return
+
+    u_sub = unique_contexts[batch_u_indices]
+    ctx_cols = [
+        np.repeat(u_sub[:, c].astype(np.int64), item_repeats)
+        for c in range(context_len)
+    ]
+
+    probs = kn_model.prob(ctx_cols, all_cands, order=order)
+
+    offset = 0
+    for j in range(b_u):
+        u_idx = batch_u_indices[j]
+        k_len = item_repeats[j]
+        c_words = all_cands[offset : offset + k_len]
+        c_probs = probs[offset : offset + k_len]
+        offset += k_len
+
+        sort_order = np.lexsort((c_words, -c_probs))
+        top_k_words = c_words[sort_order[:5]]
+        out_top5[u_idx, :len(top_k_words)] = top_k_words
+
+
 def evaluate_mode(
     mode_name: str,
     context_len: int,
@@ -88,119 +126,103 @@ def evaluate_mode(
     kn_model: KneserNeyModel,
     top50_unigrams: np.ndarray,
 ) -> dict:
-    """Evaluate predictive performance for one context mode using vectorized chunks."""
+    """Evaluate predictive performance for one context mode using unique contexts."""
     order = context_len + 1
     n_targets = len(test_targets)
     print(f"\n--- Evaluating Mode: {mode_name} (Order {order}, Context len {context_len}) ---")
-    print(f"Total target positions to evaluate: {n_targets:,}")
-
-    top1_hits = 0
-    top5_hits = 0
-    rr_sum = 0.0
 
     t_start = time.time()
-    n_chunks = math.ceil(n_targets / CHUNK_SIZE)
 
-    for chunk_idx in range(n_chunks):
-        c_t0 = time.time()
-        start_i = chunk_idx * CHUNK_SIZE
-        end_i = min(start_i + CHUNK_SIZE, n_targets)
-        b_size = end_i - start_i
+    # 1. Extract context matrix of shape (n_targets, context_len)
+    ctx_mat = np.empty((n_targets, context_len), dtype=np.int32)
+    for i, ctx in enumerate(test_contexts):
+        if len(ctx) >= context_len:
+            ctx_mat[i] = ctx[-context_len:]
+        else:
+            needed = context_len - len(ctx)
+            ctx_mat[i] = ([PAD_ID] * needed) + ctx
 
-        chunk_ctxs = test_contexts[start_i:end_i]
-        chunk_targets = test_targets[start_i:end_i]
+    unique_contexts, inverse_indices = np.unique(ctx_mat, axis=0, return_inverse=True)
+    n_unique = len(unique_contexts)
+    print(f"Total target positions: {n_targets:,} | Unique contexts to evaluate: {n_unique:,}")
 
-        # 1. Candidate generation for each item in chunk
-        chunk_cand_list: list[np.ndarray] = []
-        item_repeats = np.empty(b_size, dtype=np.int32)
+    # 2. Score unique contexts in memory-bounded batches
+    unique_top5 = np.full((n_unique, 5), -1, dtype=np.int32)
+    keys2 = kn_model.ctx_keys.get(2, np.empty(0, dtype=np.int64))
+    keys3 = kn_model.ctx_keys.get(3, np.empty(0, dtype=np.int64))
 
-        for i in range(b_size):
-            ctx = chunk_ctxs[i]
-            cands = set(top50_unigrams)
+    batch_u_indices: list[int] = []
+    batch_cands: list[np.ndarray] = []
+    batch_cands_total = 0
+    MAX_BATCH_CANDS = 50_000
+    last_print_time = t_start
 
-            # Bigram continuations
-            if context_len >= 1 and len(ctx) >= 1:
-                w1 = ctx[-1]
-                q1 = w1
-                keys2 = kn_model.ctx_keys[2]
-                g2 = int(np.searchsorted(keys2, q1))
-                if g2 < len(keys2) and keys2[g2] == q1:
-                    st2 = kn_model.ctx_start[2][g2]
-                    cnt2 = kn_model.ctx_n1[2][g2]
-                    cands.update(kn_model.unique_rows[2][st2 : st2 + cnt2, 1])
+    for u in range(n_unique):
+        ctx_u = unique_contexts[u]
+        cands = set(top50_unigrams)
 
-            # Trigram continuations
-            if context_len >= 2 and len(ctx) >= 2:
-                q2 = pack(ctx[-2:])
-                keys3 = kn_model.ctx_keys[3]
-                g3 = int(np.searchsorted(keys3, q2))
-                if g3 < len(keys3) and keys3[g3] == q2:
-                    st3 = kn_model.ctx_start[3][g3]
-                    cnt3 = kn_model.ctx_n1[3][g3]
-                    cands.update(kn_model.unique_rows[3][st3 : st3 + cnt3, 2])
+        if context_len >= 1:
+            w1 = int(ctx_u[-1])
+            g2 = int(np.searchsorted(keys2, w1))
+            if g2 < len(keys2) and keys2[g2] == w1:
+                st2 = kn_model.ctx_start[2][g2]
+                cnt2 = kn_model.ctx_n1[2][g2]
+                cands.update(kn_model.unique_rows[2][st2 : st2 + cnt2, 1])
 
-            cands.discard(PAD_ID)
-            cands.discard(EOS_ID)
-            cands.discard(UNK_ID)
+        if context_len >= 2:
+            q2 = pack(list(ctx_u))
+            g3 = int(np.searchsorted(keys3, q2))
+            if g3 < len(keys3) and keys3[g3] == q2:
+                st3 = kn_model.ctx_start[3][g3]
+                cnt3 = kn_model.ctx_n1[3][g3]
+                cands.update(kn_model.unique_rows[3][st3 : st3 + cnt3, 2])
 
-            c_arr = np.array(list(cands), dtype=np.int32)
-            chunk_cand_list.append(c_arr)
-            item_repeats[i] = len(c_arr)
+        cands.discard(PAD_ID)
+        cands.discard(EOS_ID)
+        cands.discard(UNK_ID)
 
-        # 2. Vectorized probability calculation for candidate pool
-        total_cands = int(item_repeats.sum())
-        all_cands = np.concatenate(chunk_cand_list)
+        c_arr = np.array(list(cands), dtype=np.int32)
+        batch_cands.append(c_arr)
+        batch_u_indices.append(u)
+        batch_cands_total += len(c_arr)
 
-        # Build context columns matching candidates
-        ctx_cols = []
-        for c_idx in range(context_len):
-            col_vals = np.empty(b_size, dtype=np.int64)
-            for i in range(b_size):
-                ctx = chunk_ctxs[i]
-                needed_pad = context_len - len(ctx)
-                padded_ctx = ([PAD_ID] * max(0, needed_pad)) + ctx
-                col_vals[i] = padded_ctx[c_idx]
-            ctx_cols.append(np.repeat(col_vals, item_repeats))
+        if batch_cands_total >= MAX_BATCH_CANDS or u == n_unique - 1:
+            _score_unique_batch(
+                batch_u_indices,
+                batch_cands,
+                unique_contexts,
+                context_len,
+                order,
+                kn_model,
+                unique_top5,
+            )
+            batch_u_indices = []
+            batch_cands = []
+            batch_cands_total = 0
 
-        # Vectorized KN probability
-        probs = kn_model.prob(ctx_cols, all_cands, order=order)
+            now = time.time()
+            if now - last_print_time >= 15.0 or u == n_unique - 1:
+                pct = 100.0 * (u + 1) / n_unique
+                print(f"  Processed {u + 1:,}/{n_unique:,} contexts ({pct:.1f}%) in {now - t_start:.1f} s", flush=True)
+                last_print_time = now
 
-        # 3. Rank candidates per target using lexsort (item 13-4, 13-5)
-        # Ties broken by ascending word ID
-        offset = 0
-        for i in range(b_size):
-            k_len = item_repeats[i]
-            c_words = all_cands[offset : offset + k_len]
-            c_probs = probs[offset : offset + k_len]
-            offset += k_len
+    # 3. Vectorized metric computation using inverse indices
+    pred_top5 = unique_top5[inverse_indices]
 
-            # lexsort primary: -c_probs (descending), secondary: c_words (ascending)
-            sort_order = np.lexsort((c_words, -c_probs))
-            top_k_words = c_words[sort_order[:5]]
+    top1_hits = int((pred_top5[:, 0] == test_targets).sum())
+    matches = pred_top5 == test_targets[:, None]
+    top5_hits = int(matches.any(axis=1).sum())
 
-            target = chunk_targets[i]
-            if len(top_k_words) > 0 and top_k_words[0] == target:
-                top1_hits += 1
-
-            matches = np.where(top_k_words == target)[0]
-            if len(matches) > 0:
-                top5_hits += 1
-                rank = int(matches[0]) + 1
-                rr_sum += 1.0 / rank
-
-        c_elapsed = time.time() - c_t0
-        if chunk_idx == 0:
-            est_total = c_elapsed * n_chunks
-            print(f"  Chunk 1/{n_chunks} done in {c_elapsed:.2f} s. Estimated total time: {est_total / 60:.1f} min")
-        elif (chunk_idx + 1) % 5 == 0 or (chunk_idx + 1) == n_chunks:
-            print(f"  Chunk {chunk_idx + 1}/{n_chunks} processed in {c_elapsed:.2f} s")
+    hit_rows, hit_cols = np.where(matches)
+    ranks = hit_cols + 1
+    rr_sum = float((1.0 / ranks).sum())
 
     elapsed_mode = time.time() - t_start
     top1_acc = top1_hits / n_targets if n_targets > 0 else 0.0
     top5_acc = top5_hits / n_targets if n_targets > 0 else 0.0
     mrr_5 = rr_sum / n_targets if n_targets > 0 else 0.0
 
-    print(f"  [Mode {mode_name}] Top-1 Accuracy: {top1_acc:.4f} | Top-5 Hit Rate: {top5_acc:.4f} | MRR@5: {mrr_5:.4f}")
+    print(f"  [Mode {mode_name}] Top-1 Accuracy: {top1_acc:.4f} | Top-5 Hit Rate: {top5_acc:.4f} | MRR@5: {mrr_5:.4f} (elapsed: {elapsed_mode:.2f} s)")
 
     meets_benchmarks = top1_acc >= 0.10 and top5_acc >= 0.30 and mrr_5 >= 0.15
     return {
@@ -293,8 +315,12 @@ def main() -> None:
     evaluated_targets = np.array(evaluated_targets_list, dtype=np.int32)
     print(f"Test Set Summary: {len(test_indices):,} candidates | {len(evaluated_targets):,} evaluated | {skipped_unk_targets:,} skipped (<UNK>)")
 
+    del tokens, starts, ends, test_indices, test_starts, test_lengths, evaluated_targets_list
+    import gc
+    gc.collect()
+
     print("\nLoading KneserNeyModel from train_seed42...")
-    kn_model = KneserNeyModel.load_from_dir(TRAIN_COUNTS_DIR, max_order=3)
+    kn_model = KneserNeyModel.load_from_dir(TRAIN_COUNTS_DIR, max_order=3, mmap_mode="r")
     top50_unigrams = get_top50_unigrams(kn_model)
     print(f"  Top 50 unigram continuation pool prepared: {len(top50_unigrams)} tokens")
 
