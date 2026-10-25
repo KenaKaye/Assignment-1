@@ -12,7 +12,7 @@
   "data/profile_counts.json",
   "data/artifact_list.json",
   "results/run_log.jsonl",
-  "results/kaggle_stage_times.json",
+  "results/colab_stage_times.json",
   "results/q1_top10_n1.csv",
   "results/q1_top10_n2.csv",
   "results/q1_top10_n3.csv",

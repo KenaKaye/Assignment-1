@@ -90,7 +90,7 @@ Each step has a verification check in the plan. Do not start the next step until
 ### B2. Verify the Data Before Anything Else
 
 - Never run analysis on the corpus until the Step 0 checks pass: correct file, UTF-8 decoding, Ethiopic character share above 80%, no HTML content, no truncation, and a recorded SHA-256 checksum.
-- All analysis reads `data/GPAC_cleaned.txt` and the artifacts listed in the plan's artifact layout. Never read the raw `GPAC.txt` for analysis, and never use the Kaggle `Cleaned_GPAC.txt` as input.
+- All analysis reads `data/GPAC_cleaned.txt` and the artifacts listed in the plan's artifact layout. Never read the raw `GPAC.txt` for analysis, and never use external unverified cleaned text as input.
 - The cleaned corpus keeps sentence-final punctuation (D5): each line ends with `።`, `?`, or `!`. `፡፡+` is normalized to `።`.
 - Record the verification result in `README.md`.
 - If the file looks wrong, stop and ask the user for the correct file. Do not substitute another file or fabricate data.
@@ -154,7 +154,7 @@ Every solution file must make it easy for the teacher to find each answer.
 ### B9. Notebook and File Conventions
 
 - Notebook names: `Q1_ngram_model.ipynb`, `Q2_intrinsic_eval.ipynb`, `Q3_extrinsic_eval.ipynb`, `Q4_predictive_app.ipynb`.
-- Build notebooks: `kaggle/Kaggle_Build.ipynb` and `colab/Colab_Build.ipynb`.
+- Build notebook: `colab/Colab_Build.ipynb`.
 - Application code for Q4 goes in `app/`. Keep the application logic separate from the notebook experiments.
 - Figures go in `figures/` with descriptive names, for example `q1_6_wordcloud_bigram_before.png`.
 - Follow the artifact layout table in the plan. Commit only the files marked "Yes" there. The large files in `data/` are rebuilt by the scripts and must be listed in `.gitignore`.
@@ -170,7 +170,7 @@ Every solution file must make it easy for the teacher to find each answer.
 
 ### B13. Where Code Runs
 
-- Heavy work runs on Kaggle or Colab only: any pass over `GPAC.txt` or `GPAC_cleaned.txt`, any sort, count, or lookup over `tokens.npy` or the count arrays, any perplexity or evaluation over the test split, and any build of counts.
+- Heavy work runs on Colab only: any pass over `GPAC.txt` or `GPAC_cleaned.txt`, any sort, count, or lookup over `tokens.npy` or the count arrays, any perplexity or evaluation over the test split, and any build of counts.
 - Every heavy script calls `require_heavy_runtime()` and must refuse to run on the PC. Do not work around this check. The `ALLOW_HEAVY_LOCAL=1` override may be used only for a deliberate, recorded decision, which is logged to `results/run_log.jsonl`.
 - The PC runs light work only: reading `results/`, rendering figures, running the CLI, the API, and the Next.js UI against the downloaded training-split artifacts, checksum checks, and unit tests on small fixtures in `tests/`.
 - Heavy stages use two-tier checkpoints via `data/manifest.json`: a stage is skipped only if all its input hashes and output hashes match the recorded values.

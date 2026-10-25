@@ -80,7 +80,7 @@ def main() -> None:
         else:
             print(f"  [WARN] Differs from authoritative hash ({expected_raw})")
     else:
-        print("\n[INFO] data/GPAC.txt not present on local PC (heavy file kept on Kaggle/Colab per AGENTS B13).")
+        print("\n[INFO] data/GPAC.txt not present on local PC (heavy file kept on Colab per AGENTS B13).")
 
     print("\n[SUCCESS] All artifact checksums match perfectly! Ready for local PC notebooks and app.")
     sys.exit(0)
