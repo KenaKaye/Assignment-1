@@ -17,12 +17,21 @@ if ROOT_DIR not in sys.path:
 if os.path.join(ROOT_DIR, "app") not in sys.path:
     sys.path.insert(0, os.path.join(ROOT_DIR, "app"))
 
+from contextlib import asynccontextmanager
 from predictor import get_predictor, suggest_candidates
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    get_predictor()
+    yield
+
 
 app = FastAPI(
     title="Amharic Predictive Text API",
     description="REST API serving N-gram Next-Word Suggestions on the GPAC Corpus",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Enable CORS for local Next.js frontend
@@ -33,11 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Startup event: warm up the model
-@app.on_event("startup")
-def startup_event():
-    get_predictor()
 
 # Pydantic Models matching Section 6.2 of UI Plan
 class SuggestionItem(BaseModel):

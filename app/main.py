@@ -1,64 +1,48 @@
 """
 Interactive CLI for Amharic Next-Word Suggestion Application
 Course: Natural Language Processing | Assignment 1 (Q4)
-
+Follows Docs/NLP_Assignment1_Implementation_Plan.md and Docs/NLP_Assignment1_UI_Plan.md.
 """
 
-import sys
+from __future__ import annotations
+
 import os
-import json
-import re
+import sys
 
-# Ensure UTF-8 stdout
-if sys.stdout.encoding.lower() != 'utf-8':
-    sys.stdout.reconfigure(encoding='utf-8')
+# Ensure UTF-8 stdout and stdin
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stdin, "reconfigure"):
+        sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from suggest import AmharicPredictor, ETHIOPIC_WORD_REGEX
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+if os.path.join(ROOT_DIR, "app") not in sys.path:
+    sys.path.insert(0, os.path.join(ROOT_DIR, "app"))
 
-def load_training_sentences():
-    """Load sentences according to saved split."""
-    split_path = "data/split_indices_seed42.json"
-    corpus_path = "data/GPAC.txt" if os.path.exists("data/GPAC.txt") else "Docs/GPAC.txt"
-    
-    if not os.path.exists(split_path) or not os.path.exists(corpus_path):
-        print(f"Error: Missing {split_path} or {corpus_path}.")
-        sys.exit(1)
-        
-    with open(split_path, "r", encoding="utf-8") as f:
-        splits = json.load(f)
-    train_set = set(splits["train"])
-    
-    sentence_split_regex = re.compile(r'[።?!]|\u1361\u1361+')
-    sentences = []
-    with open(corpus_path, "r", encoding="utf-8") as f:
-        buffer = ""
-        while chunk := f.read(2 * 1024 * 1024):
-            buffer += chunk
-            parts = sentence_split_regex.split(buffer)
-            for s in parts[:-1]:
-                tokens = ETHIOPIC_WORD_REGEX.findall(s)
-                if len(tokens) >= 2:
-                    sentences.append(tokens)
-                    if len(sentences) >= 100000:
-                        break
-            if len(sentences) >= 100000:
-                break
-            buffer = parts[-1]
-            
-    train_sentences = [sentences[i] for i in splits["train"] if i < len(sentences)]
-    return train_sentences
+from predictor import get_predictor, suggest_candidates
+from model_store import get_model_store
+
 
 def run_interactive_app():
     print("=" * 65)
     print("  Amharic Next-Word Suggestion & Predictive Text System (Q4)  ")
     print("=" * 65)
-    print("Initializing model from corpus training partition...")
-    train_data = load_training_sentences()
-    
-    predictor = AmharicPredictor()
-    t_train = predictor.train(train_data)
-    print(f"Model ready in {t_train:.2f}s! ({predictor.V:,} words in vocabulary)")
+    print("Initializing predictor engine...")
+    predictor = get_predictor()
+    store = get_model_store()
+
+    v_size = getattr(predictor, "vocab_size", getattr(predictor, "V", 0))
+    if store.is_ready:
+        print(f"Pipeline model loaded successfully! ({v_size:,} words in training vocabulary)")
+    else:
+        print(f"Predictor ready! ({v_size:,} words in vocabulary)")
+        print("(Note: To use full memory-mapped Kneser-Ney counts, download Colab export bundle)")
+
     print("-" * 65)
     print("Instructions:")
     print("  - Type an incomplete Amharic sentence (e.g., 'ኢትዮጵያ ውስጥ የቡና')")
@@ -68,6 +52,8 @@ def run_interactive_app():
     print("-" * 65)
 
     current_sentence = ""
+    last_suggs: list[dict] = []
+
     while True:
         try:
             if not current_sentence:
@@ -80,14 +66,15 @@ def run_interactive_app():
                 continue
 
             if user_input.lower() in ('q', 'quit', 'exit'):
-                print(f"\nFinal composed text: {current_sentence} ።")
+                if current_sentence:
+                    print(f"\nFinal composed text: {current_sentence} ።")
                 print("Exiting application. ደህና ሁኑ!")
                 break
 
             # If user selected a number 1-5 from previous suggestions
-            if user_input.isdigit() and 1 <= int(user_input) <= 5 and 'last_suggs' in locals():
+            if user_input.isdigit() and 1 <= int(user_input) <= len(last_suggs):
                 selected_idx = int(user_input) - 1
-                picked_word = last_suggs[selected_idx][0]
+                picked_word = last_suggs[selected_idx]["word"]
                 current_sentence = (current_sentence + " " + picked_word).strip()
             else:
                 # User typed new text or custom next word
@@ -97,17 +84,23 @@ def run_interactive_app():
                     current_sentence = user_input
 
             # Generate top-5 suggestions for current sentence
-            suggs, strategy, latency = predictor.suggest(current_sentence, context_len=2, top_k=5)
-            last_suggs = suggs
+            res = suggest_candidates(current_sentence, n=3, k=5)
+            last_suggs = res.get("suggestions", [])
+            strategy = res.get("strategy", "ngram")
+            latency_ms = res.get("latency_ms", 0.0)
 
-            print(f"\nTop 5 Next-Word Suggestions ({strategy}, {latency*1000:.2f}ms):")
-            for rank, (word, prob) in enumerate(suggs, 1):
-                c = predictor.unigram_counts.get(word, 0)
-                print(f"  [{rank}] {word:<15} (P = {prob:.4f}, corpus freq = {c:,})")
+            print(f"\nTop 5 Next-Word Suggestions ({strategy}, {latency_ms:.2f} ms):")
+            if not last_suggs:
+                print("  (No candidate continuations found)")
+            for rank, item in enumerate(last_suggs, start=1):
+                w = item["word"]
+                p = item["probability"]
+                print(f"  [{rank}] {w:<15} (P = {p:.4f})")
 
         except (KeyboardInterrupt, EOFError):
             print("\nExiting. ደህና ሁኑ!")
             break
+
 
 if __name__ == "__main__":
     run_interactive_app()
