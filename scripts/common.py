@@ -70,7 +70,7 @@ def to_rel_path(path: Path | str) -> str:
 
 
 def require_heavy_runtime(task_name: str = "Heavy pipeline stage") -> None:
-    """Enforce the rule: heavy stages run on Kaggle or Google Colab only.
+    """Enforce the rule: heavy stages run on Google Colab only.
 
     May only be bypassed locally if ALLOW_HEAVY_LOCAL=1 is explicitly set.
     """
@@ -91,18 +91,10 @@ def require_heavy_runtime(task_name: str = "Heavy pipeline stage") -> None:
     except ImportError:
         pass
 
-    if os.environ.get("KAGGLE_KERNEL_RUN_TYPE"):
-        print(f"[REQUIRE_HEAVY] Verified Kaggle environment (KAGGLE_KERNEL_RUN_TYPE) for: {task_name}")
-        return
-
-    if os.path.isdir("/kaggle/working"):
-        print(f"[REQUIRE_HEAVY] Verified Kaggle environment (/kaggle/working) for: {task_name}")
-        return
-
     print(
-        f"\n[ERROR] '{task_name}' is a heavy pipeline script designated to run on Kaggle or Colab only.\n"
+        f"\n[ERROR] '{task_name}' is a heavy pipeline script designated to run on Google Colab only.\n"
         f"Under AGENTS.md Rule B13 and the implementation plan, passes over GPAC.txt, sorting,\n"
-        f"vectorized n-gram counting, and perplexity evaluations must execute on Kaggle or Colab.\n"
+        f"vectorized n-gram counting, and perplexity evaluations must execute on Colab.\n"
         f"To deliberately run locally, set environment variable ALLOW_HEAVY_LOCAL=1.\n"
     )
     sys.exit(1)

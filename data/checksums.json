@@ -1,5 +1,5 @@
 {
-  "data/artifact_list.json": "8c540f5356c5038f324f097177e4b5048df49cf71f6893dcd697fd2707294d4d",
+  "data/artifact_list.json": "54ea55d567761dd800fe05bb2fd755433044b2d05b6a38fdc962ea6a3624bc7d",
   "data/counts/train_seed42/vocab_train.tsv": "ce30193f907ad8e43af6c17a29bd3d82ac6114525b3e793262754fac6277ece4",
   "data/counts/train_seed7/vocab_train.tsv": "3589e4a6156bfb6986d44c0e351bc29e1f17367021ecc2ade5d23e8bd6659485",
   "data/manifest.json": "5b9d2e6303d2585ddb734ecfdfdfedaaf05ae70a308a3da649dabad9d2fdab87",
@@ -10,7 +10,7 @@
   "data/split_indices_seed7.json": "4bc1bdaa70f8b28963ccb6af7d405801a1175a6b68c63f1844137f2ab370bf72",
   "data/split_indices_seed7_v2.json": "4bc1bdaa70f8b28963ccb6af7d405801a1175a6b68c63f1844137f2ab370bf72",
   "data/vocab.tsv": "37db03c013f4811740ce7f938a7da4395607002de228a94d3b7d51bcf4db03fa",
-  "results/kaggle_stage_times.json": "5b9d9af44023af319b7cd824023a0ef2876d54fe5980504f8b2117f1f862d00f",
+  "results/colab_stage_times.json": "5b9d9af44023af319b7cd824023a0ef2876d54fe5980504f8b2117f1f862d00f",
   "results/q1_bigram_conditional.csv": "6792cdd51c84e13aded4b18e395ea938cc72fd647af6614b3ecbeac0e352cce5",
   "results/q1_generation.json": "cad0d7be08ec38a5ccb032a7629f8405a0ca6082a2ad1de1c5a08c0c128d7fc7",
   "results/q1_sentence_probs.csv": "e9a843d578877973fb42520cef57c9e510dbab29fee0980e3d3f218a64bc56ec",
