@@ -186,7 +186,43 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
     * $n = 3$: **0 / 3 (0.0%)** full verbatim copies
     * $n = 4$: **0 / 3 (0.0%)** full verbatim copies
     * **Overall Duplication Rate:** **0 / 12 (0.0%)**.
-  * **Qualitative Transition:** While unigrams yield syntactic gibberish and bigrams produce only local word pairs, trigrams and 4-grams construct grammatically fluent sentences by assembling authentic multi-word idiomatic collocations (e.g., `ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል`) without copying entire sentences verbatim.
+
+  * **Order Progression Metrics Summary:**
+
+    | Order $n$ | Conditioning History | Avg. Length | Avg. Total $\log P$ | Avg. Per-Token $\log P$ | Equivalent Per-Token Branching ($e^{-\overline{\log P}/L}$) | Verbatim Sentence Copies | Syntactic & Discourse Realization |
+    | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+    | **$n = 1$** | None ($0$ words) | 25.0 tokens | $-285.52$ | $-11.42$ | $\approx 91,126$ | **0 / 3 (0.0%)** | Unordered "word salad"; complete absence of syntactic agreement or clause structure. |
+    | **$n = 2$** | 1 word | 19.0 tokens | $-111.76$ | $-5.84$ | $\approx 344$ | **0 / 3 (0.0%)** | Valid local 2-word collocations and modifier pairings; wandering global discourse. |
+    | **$n = 3$** | 2 words | 7.0 tokens | $-28.38$ | $-4.21$ | $\approx 67$ | **0 / 3 (0.0%)** | Fluent clause structures, correct verb inflection, natural colloquial and journalistic tone. |
+    | **$n = 4$** | 3 words | 9.0 tokens | $-22.19$ | $\mathbf{-2.53}$ | $\mathbf{\approx 12.5}$ | **0 / 3 (0.0%)** | Near-human fluency; complex subordinate, concessive, and complement clauses. |
+
+  * **Detailed Explanation of What Happens as $n$ Increases (Grounded in Model Outputs):**
+
+    1. **Syntactic Coherence and Grammatical Concord:**
+       * **At $n = 1$ (Unigram):** The model samples tokens independently from the unigram prior $P(w)$, ignoring grammatical history entirely ($P(w_i \mid w_{<i}) = P(w_i)$). As observed in Sentence 1 (`ያስተዋልነው ቱርክ ልፃፍ ማብራሪያም ገንዘብ ዘገየችን ...`), words of incompatible syntactic categories are arbitrarily juxtaposed (e.g., relative perfective verb `ያስተዋልነው` $\to$ proper noun `ቱርክ` $\to$ first-person jussive verb `ልፃፍ` $\to$ noun with conjunction `ማብራሪያም` $\to$ noun `ገንዘብ` $\to$ 3rd-person feminine perfective verb with 1st-person plural object suffix `ዘገየችን`). There is zero subject-verb agreement, zero case concord, and no discernible phrase boundary.
+       * **At $n = 2$ (Bigram):** Conditioning on the single preceding token ($P(w_i \mid w_{i-1})$) immediately enforces local morphological and collocational validity. Realized outputs demonstrate legitimate two-word syntactic combinations: adjective-noun pairings (`አበረታች ውጤት` — "encouraging result"), modal verbal idioms (`ማስቀጠል የግድ ይለናል` — "we are obligated to continue"), and adjective-infinitive predicates (`ቀላል ማድረግ` — "to simplify / make easy"). However, because memory extends only one word back, the model exhibits "syntactic drift": Sentence 2 strings together plausible adjacent bigrams regarding church properties, prisoner releases, and governmental authority, but lacks a coherent argument structure or unifying semantic subject.
+       * **At $n = 3$ (Trigram):** Conditioning on a two-word history ($P(w_i \mid w_{i-2}, w_{i-1})$) unlocks genuine multi-word clause construction. The model maintains subject-predicate concord across entire clauses: Sentence 1 (`ቢሏቸው ምን እንዳሉ ታውቃላችሁ።` — *"Do you know what they said when they told them?"*) produces a perfectly formed colloquial question with correct subordinate conditional marking (`ቢ-`), object suffix (`-ቸው`), embedded interrogative clause (`ምን እንዳሉ`), and agreeing second-person plural matrix verb (`ታውቃላችሁ`). Sentence 2 (`የዓለም ዋንጫ ጉብኝት በዘጠኝ ወራት ውስጥ ችግር እንዳለ ጠቁመዋል።` — *"They pointed out that there was a problem within nine months of the World Cup tour."*) generates an authentic journalistic report with a compound temporal prepositional phrase (`በዘጠኝ ወራት ውስጥ`) and subordinate existential complement (`ችግር እንዳለ`) correctly governed by the reporting verb (`ጠቁመዋል።`).
+       * **At $n = 4$ (4-gram):** Conditioning on a three-word history ($P(w_i \mid w_{i-3}, w_{i-2}, w_{i-1})$) achieves near-human syntactic sophistication. The model reliably generates complex subordinate clauses: Sentence 1 (`ሆቴሉ ተጠናቅቆ ስራ ሲጀምር ከ በላይ ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል።`) seamlessly coordinates temporal gerundives (`ተጠናቅቆ`), temporal subordinate clauses (`ስራ ሲጀምር`), institutional development collocations (`የስራ እድል ይፈጥራል`), and passive indirect reporting (`ተብሏል`). Sentence 2 (`ሠራተኛ የነበረ ቢሆንም የነፍሱ ጥሪ ግን ሥራ ፈጠራ ነበር።` — *"Although he was an employee, his soul's calling was entrepreneurship."*) reproduces an advanced concessive syntactic frame (`ቢሆንም ... ግን ... ነበር`).
+
+    2. **Sentence Length and Natural Boundary Termination (`</s>` / `።`):**
+       * **Unigram ($n = 1$):** Every generated sentence hits the artificial upper bound of $25$ tokens (100% cutoff rate). Because the model possesses no context, the probability of producing the end-of-sentence token `</s>` is simply its global unigram frequency ($P(\text{EOS}) \approx 0.064$). The probability of continuing a sequence at each step is $\approx 0.936$, leading to expected sequence lengths far exceeding 25 tokens.
+       * **Bigram ($n = 2$):** Sentence length begins to vary dynamically ($13$, $25$, and $19$ tokens). The model recognizes that certain lexical items (such as conjugated perfective verbs like `አስረድተዋል`) have high transitional probabilities to sentence-final punctuation (`።` / `</s>`), allowing Sentence 1 to terminate naturally at 13 tokens.
+       * **Trigram and 4-gram ($n = 3, 4$):** 100% of generated sentences terminate naturally via `</s>` at lengths closely mirroring natural Amharic prose: $4$, $9$, and $8$ tokens for $n = 3$ (mean 7.0 tokens), and $12$, $9$, and $6$ tokens for $n = 4$ (mean 9.0 tokens). Zero sentences hit the 25-token truncation limit. The conditioning histories preceding terminal punctuation (e.g. `ታውቃላችሁ`, `ጠቁመዋል`, `አልቋል`, `ተብሏል`, `ነበር`, `ገልፀዋል`) overwhelmingly favor `</s>`, ensuring sharp, syntactically appropriate sentence closure.
+
+    3. **Monotonic Surge in Predictive Likelihood and Model Confidence:**
+       * Average per-token log-probability rises monotonically and dramatically across orders:
+         $$\overline{\log P}/\text{token}: \quad -11.42 \; (n=1) \;\longrightarrow\; -5.84 \; (n=2) \;\longrightarrow\; -4.21 \; (n=3) \;\longrightarrow\; \mathbf{-2.53} \; (n=4)$$
+       * In probability space, the effective branching perplexity per word drops by over three orders of magnitude from $\approx 91,126$ at $n=1$ down to $\approx 12.5$ at $n=4$. With each additional conditioning token, the model eliminates vast swaths of incompatible vocabulary, concentrating probability mass tightly onto grammatical and collocationally expected continuations.
+
+    4. **Idiomatic Recombination vs. Verbatim Duplication (The 0.0% Duplication Finding):**
+       * A classic concern in high-order language modeling is that as $n$ increases, the model ceases to generalize and simply memorizes whole sentences from the training set.
+       * To verify this empirically, all 12 generated sentences were checked against all 4,993,570 lines of the cleaned corpus `GPAC_cleaned.txt` using 64-bit BLAKE2b hash lookups.
+       * **Result:** Exactly **0 out of 12 (0.0%)** sentences were verbatim corpus copies. Even at $n = 4$, the model did not copy any pre-existing sentence in its entirety.
+       * **Linguistic Explanation:** Rather than rote whole-sentence memorization, the 4-gram model acts as a **modular assembler** of institutional collocations and syntactic frames. It strings together high-frequency formulaic multi-word segments (such as `ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል` or `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር`) at legitimate branching points where multiple continuations exist, producing novel yet completely natural compositions.
+
+    5. **The Fundamental Generative Trade-off (Fluency vs. Context Sparsity):**
+       * As $n$ increases from 1 to 4, output quality transitions from ungrammatical randomness to fluent, human-like Amharic text.
+       * However, this fluency comes at the cost of **combinatorial context sparsity**: the number of possible contexts scales as $|V|^{n-1}$ ($\approx 3.7 \times 10^{16}$ possible 3-word contexts for $|V| = 333,707$), while observed training contexts remain finite. At $n = 4$, many histories have very few observed continuations, leading to low branching entropy within recognized idioms and requiring frequent reliance on interpolated Kneser-Ney smoothing when bridging between phrasal chunks.
 
 ---
 
