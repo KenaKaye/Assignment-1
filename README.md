@@ -107,21 +107,22 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
   * Maximum Likelihood Estimation sequence probability is defined by $P(w_1, \dots, w_n) = \frac{\text{count}(w_1, \dots, w_n)}{N_{\text{total}}}$, where $N_{\text{total}} = 81,161,104$.
   * Because $N_{\text{total}}$ is constant, the n-grams with highest frequency are identically the n-grams with highest sequence probability.
   * **Top 10 Most Likely 4-grams (Order $n = 4$, from `results/q1_top10_n4.csv`):**
+    Filtering boundary markers (`<s>`, `</s>`, `<UNK>`) presents purely authentic lexical Amharic 4-grams:
 
-    | Rank | 4-gram Sequence | Corpus Count | Joint Probability ($P$) | Linguistic Role & Discourse Function |
+    | Rank | 4-gram Sequence (Pure Lexical Words) | Corpus Count | Joint Probability ($P$) | Linguistic Role & Discourse Function |
     | :---: | :--- | :---: | :---: | :--- |
-    | **1** | `<s> <s> <s> ይህ` | 98,017 | $1.2077 \times 10^{-3}$ | Sentence-initial demonstrative pronoun (*"This..."*) |
-    | **2** | `<s> <s> <s> በዚህ` | 60,098 | $7.4048 \times 10^{-4}$ | Sentence-initial prepositional demonstrative (*"In this / With this..."*) |
-    | **3** | `<s> <s> <s> ከዚህ` | 41,722 | $5.1406 \times 10^{-4}$ | Sentence-initial prepositional demonstrative (*"From this / Beyond this..."*) |
-    | **4** | `<s> <s> <s> ስለዚህ` | 36,250 | $4.4664 \times 10^{-4}$ | Sentence-initial causal connective (*"Therefore / So..."*) |
-    | **5** | `<s> <s> <s> አሁን` | 35,341 | $4.3544 \times 10^{-4}$ | Sentence-initial temporal adverb (*"Now / At present..."*) |
-    | **6** | `<s> <s> <s> አቶ` | 31,892 | $3.9295 \times 10^{-4}$ | Sentence-initial honorific title (*"Mr. [Name]..."*) |
-    | **7** | `<s> <s> <s> ነገር` | 30,168 | $3.7171 \times 10^{-4}$ | Sentence-initial discourse prefix (*"Matter / Thing..."*) |
-    | **8** | `<s> <s> ነገር ግን` | 29,633 | $3.6511 \times 10^{-4}$ | Sentence-initial adversative discourse conjunction (*"However / But..."*) |
-    | **9** | `<s> <s> <s> አንድ` | 28,713 | $3.5378 \times 10^{-4}$ | Sentence-initial indefinite determiner / numeral (*"One / A certain..."*) |
-    | **10**| `<s> <s> <s> እንደ` | 28,171 | $3.4710 \times 10^{-4}$ | Sentence-initial comparative preposition (*"As / Like / According to..."*) |
+    | **1** | `ቀን ዓ ም ኢሳት` | 9,786 | $1.2057 \times 10^{-4}$ | Broadcast news date formula (*"[Day] E.C., ESAT..."*) |
+    | **2** | `ዓ ም ኢሳት ዜና` | 9,700 | $1.1952 \times 10^{-4}$ | Media attribution headline (*"[Year] E.C., ESAT News..."*) |
+    | **3** | `እ ኤ አ በ` | 8,613 | $1.0612 \times 10^{-4}$ | Gregorian calendar date prefix (*"In ... G.C."*) |
+    | **4** | `የካቲት ቀን ዓ ም` | 2,952 | $3.6372 \times 10^{-5}$ | Formal month-date formula (*"Yekatit [Day], E.C."*) |
+    | **5** | `መጋቢት ቀን ዓ ም` | 2,908 | $3.5830 \times 10^{-5}$ | Formal month-date formula (*"Megabit [Day], E.C."*) |
+    | **6** | `ከ ዓ ም ጀምሮ` | 2,866 | $3.5312 \times 10^{-5}$ | Temporal origin construction (*"Starting from [Year] E.C."*) |
+    | **7** | `ግንቦት ቀን ዓ ም` | 2,824 | $3.4795 \times 10^{-5}$ | Formal month-date formula (*"Ginbot [Day], E.C."*) |
+    | **8** | `ከ ሚሊዮን ብር በላይ` | 2,822 | $3.4770 \times 10^{-5}$ | Financial quantification formula (*"More than ... million Birr"*) |
+    | **9** | `የአዲስ አበባ ከተማ አስተዳደር` | 2,607 | $3.2121 \times 10^{-5}$ | Municipal state entity (*"Addis Ababa City Administration"*) |
+    | **10**| `ሰኔ ቀን ዓ ም` | 2,569 | $3.1653 \times 10^{-5}$ | Formal month-date formula (*"Sene [Day], E.C."*) |
 
-    *(Note: Sentence-initial padding `<s> <s> <s>` naturally leads raw frequency because every one of the 4,993,570 corpus sentences starts with three boundary padding symbols).*
+    *(Note: All sequences above are authentic 4-word Amharic phrases with boundary padding markers cleanly excluded).*
 
 * **Q1.4 Conditional Bigram Probabilities:**
   * Implemented modular function `get_conditional_bigram_prob(w1, w2)` computing $P(w_2 \mid w_1) = \frac{\text{count}(w_1, w_2)}{\text{count}(w_1)}$.
