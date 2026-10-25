@@ -60,7 +60,7 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
 | **Content Integrity**                                      | Clean Amharic text stream without HTML tags or truncated endings     |
 | **Total Characters**                                       | 424,397,739 characters                                               |
 | **Non-Space Characters**                                   | 325,302,788 characters                                               |
-| **Ethiopic Letters Only (U+1200 - U+135A)**                | Reported in Stage 03 verification (> 80% benchmark)                  |
+| **Ethiopic Letters Only (U+1200 - U+135A)**                | **311,215,830 characters** (95.67% of non-space text $\to$ **PASS**, benchmark $> 80.0\%$) |
 | **Ethiopic Characters with Punctuation (U+1200 - U+137F)** | 319,350,166 characters (98.17% of non-space text)                    |
 | **Sentence Delimiters**                                    | Sentence punctuation (`።`, `?`, `!`, `፡፡+`)               |
 
@@ -68,15 +68,15 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
 
 ## 3. Environment & Dependencies
 
-* **Operating System:** Windows 11
+* **Operating System:** Windows 11 (PC Evaluation) / Ubuntu Linux (Google Colab Build)
 * **Python Version:** `3.12.4`
-* **Installed Library Versions:**
+* **Installed Library Versions & Environment Specification:**
+  * `numpy`: **`2.1.3` pinned on Google Colab** (heavy compute environment; strict pinning required for deterministic RNG permutation, grouped dataset splitting, and negative sample pairing); **`2.0.1` / `2.1.3` on Local PC** (light execution environment). *Note:* Local PC notebooks load and display precomputed artifacts and run the web/CLI apps without regenerating random splits or synthetic corruptions.
   * `nltk`: `3.9.4`
-  * `numpy`: `2.0.1`
   * `matplotlib`: `3.10.8`
   * `wordcloud`: `1.9.6`
   * `pandas`: `2.2.2`
-  * `scikit-learn`: `1.8.0`
+  * `scikit-learn`: `1.6.1` (Colab) / `1.8.0` (PC)
   * `fastapi`: `0.115.0`
   * `uvicorn`: `0.32.0`
 * **Font Support:** `figures/NotoSansEthiopic-Regular.ttf` (bundled to ensure uniform Amharic rendering across all platforms).
@@ -98,27 +98,30 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
     * Bigrams ($n=2$): **24,512,092** distinct types
     * Trigrams ($n=3$): **44,980,457** distinct types
     * 4-grams ($n=4$): **52,176,782** distinct types
+  * **Hand-Check Verification Fixture:**
+    Evaluated on the 2-sentence validation fixture: `"ኢትዮጵያ ታሪካዊት አገር ናት። ህዝቧም አኩሪ ታሪክ አለው።"`
+    * Hand-tallied bigrams: `('<s>', 'ኢትዮጵያ'): 1`, `('ኢትዮጵያ', 'ታሪካዊት'): 1`, `('ታሪካዊት', 'አገር'): 1`, `('አገር', 'ናት'): 1`, `('ናት', '</s>'): 1`, `('<s>', 'ህዝቧም'): 1`, `('ህዝቧም', 'አኩሪ'): 1`, `('አኩሪ', 'ታሪክ'): 1`, `('ታሪክ', 'አለው'): 1`, `('አለው', '</s>'): 1`.
+    * Code-generated bigram extraction matches the manual tally with 100% precision and identical boundary transitions.
 
 * **Q1.3 Probabilities & Top 10 Tables (Joint Sequence MLE):**
   * Maximum Likelihood Estimation sequence probability is defined by $P(w_1, \dots, w_n) = \frac{\text{count}(w_1, \dots, w_n)}{N_{\text{total}}}$, where $N_{\text{total}} = 81,161,104$.
   * Because $N_{\text{total}}$ is constant, the n-grams with highest frequency are identically the n-grams with highest sequence probability.
-  * **Top 10 Most Likely 4-grams (Order $n = 4$):**
-    When filtering out sentence boundary padding markers (`<s>`, `</s>`) to present purely authentic lexical Amharic phrases, the top 4-grams are dominated by standard temporal dating and formal discourse formulas:
+  * **Top 10 Most Likely 4-grams (Order $n = 4$, from `results/q1_top10_n4.csv`):**
 
-    | Rank | 4-gram Sequence (Pure Lexical Words) | Corpus Count | Joint Probability ($P$) | Linguistic Role |
+    | Rank | 4-gram Sequence | Corpus Count | Joint Probability ($P$) | Linguistic Role & Discourse Function |
     | :---: | :--- | :---: | :---: | :--- |
-    | **1** | `በ ... ቀን ዓ ም` | 42,912 | $5.2873 \times 10^{-4}$ | Formal Date Formula (*on the date of ... A.D.*) |
-    | **2** | `... ቀን ዓ ም ተካሄደ` | 18,450 | $2.2733 \times 10^{-4}$ | Temporal Event Occurrence (*was held on ...*) |
-    | **3** | `ነገር ግን በዚህ ወቅት` | 15,210 | $1.8741 \times 10^{-4}$ | Adversative Discourse Marker (*but at this time*) |
-    | **4** | `የኢትዮጵያ ፌዴራላዊ ዴሞክራሲያዊ ሪፐብሊክ` | 14,890 | $1.8346 \times 10^{-4}$ | Official State Entity (*FDRE*) |
-    | **5** | `የሕዝብ ተወካዮች ምክር ቤት` | 13,654 | $1.6823 \times 10^{-4}$ | Parliamentary Institution (*House of Peoples' Representatives*) |
-    | **6** | `የኢትዮጵያ ንግድ ባንክ` | 11,240 | $1.3849 \times 10^{-4}$ | Financial Entity (*Commercial Bank of Ethiopia*) |
-    | **7** | `በአዲስ አበባ ከተማ አስተዳደር` | 9,870 | $1.2161 \times 10^{-4}$ | Municipal Entity (*Addis Ababa City Administration*) |
-    | **8** | `የውጭ ጉዳይ ሚኒስቴር` | 8,920 | $1.0990 \times 10^{-4}$ | Ministerial Body (*Ministry of Foreign Affairs*) |
-    | **9** | `ሰላምና ደህንነት ማስከበር` | 7,650 | $9.4257 \times 10^{-5}$ | Civic Collocation (*ensuring peace and security*) |
-    | **10**| `የአገር ውስጥና የውጭ` | 7,120 | $8.7727 \times 10^{-5}$ | Economic Scope (*domestic and foreign*) |
+    | **1** | `<s> <s> <s> ይህ` | 98,017 | $1.2077 \times 10^{-3}$ | Sentence-initial demonstrative pronoun (*"This..."*) |
+    | **2** | `<s> <s> <s> በዚህ` | 60,098 | $7.4048 \times 10^{-4}$ | Sentence-initial prepositional demonstrative (*"In this / With this..."*) |
+    | **3** | `<s> <s> <s> ከዚህ` | 41,722 | $5.1406 \times 10^{-4}$ | Sentence-initial prepositional demonstrative (*"From this / Beyond this..."*) |
+    | **4** | `<s> <s> <s> ስለዚህ` | 36,250 | $4.4664 \times 10^{-4}$ | Sentence-initial causal connective (*"Therefore / So..."*) |
+    | **5** | `<s> <s> <s> አሁን` | 35,341 | $4.3544 \times 10^{-4}$ | Sentence-initial temporal adverb (*"Now / At present..."*) |
+    | **6** | `<s> <s> <s> አቶ` | 31,892 | $3.9295 \times 10^{-4}$ | Sentence-initial honorific title (*"Mr. [Name]..."*) |
+    | **7** | `<s> <s> <s> ነገር` | 30,168 | $3.7171 \times 10^{-4}$ | Sentence-initial discourse prefix (*"Matter / Thing..."*) |
+    | **8** | `<s> <s> ነገር ግን` | 29,633 | $3.6511 \times 10^{-4}$ | Sentence-initial adversative discourse conjunction (*"However / But..."*) |
+    | **9** | `<s> <s> <s> አንድ` | 28,713 | $3.5378 \times 10^{-4}$ | Sentence-initial indefinite determiner / numeral (*"One / A certain..."*) |
+    | **10**| `<s> <s> <s> እንደ` | 28,171 | $3.4710 \times 10^{-4}$ | Sentence-initial comparative preposition (*"As / Like / According to..."*) |
 
-  *(Note: In the raw model array padded with boundary tokens, sentence-initial padding `<s> <s> <s>` leads frequency counts because it starts all 4.99M sentences).*
+    *(Note: Sentence-initial padding `<s> <s> <s>` naturally leads raw frequency because every one of the 4,993,570 corpus sentences starts with three boundary padding symbols).*
 
 * **Q1.4 Conditional Bigram Probabilities:**
   * Implemented modular function `get_conditional_bigram_prob(w1, w2)` computing $P(w_2 \mid w_1) = \frac{\text{count}(w_1, w_2)}{\text{count}(w_1)}$.
@@ -128,69 +131,128 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
     * $P(\text{እና} \mid \text{መንግስት}) = 0.041280$ (4.13%).
     * Unseen pair `('ሰማይ', 'ድንጋይ')` receives $P = 0.0$.
 
-* **Q1.5 Stopwords:**
-  * 30 function words removed based on grammatical categorization.
-  * After filtering, rich topical entities (`ኢትዮጵያ`, `አዲስ አበባ`, `መንግስት`, `ህዝብ`, `አገር`) rose to the top ranks across all orders.
+* **Q1.5 Stopwords & Filtering Analysis:**
+  * **Linguistic Justification for 30 Stopwords:**
+    The stopword list comprises 30 closed-class syntactic function words categorized by grammatical role:
+    * *Prepositions (7):* `በ` (in/by), `ከ` (from), `ወደ` (to/toward), `ስለ` (about), `እንደ` (like/as), `ላይ` (on/upon), `ውስጥ` (inside/within).
+    * *Conjunctions (5):* `እና` (and), `ግን` (but), `ነገር` (however/thing), `ወይም` (or), `ሆኖም` (nonetheless).
+    * *Copulas & Auxiliary Verbs (6):* `ነው` (is), `ነበር` (was), `ናት` (is [fem]), `ናቸው` (are), `አለ` (there is), `ይሆናል` (will be).
+    * *Pronouns & Demonstratives (9):* `ይህ` (this), `እኔ` (I), `እኛ` (we), `እሱ` (he), `እሷ` (she), `እነሱ` (they), `ምን` (what), `ማን` (who), `እነዚህ` (these).
+    * *Adverbs & Focus Particles (3):* `ብቻ` (only), `እንዲሁም` (as well as), `በጣም` (very).
+  * **Before vs. After Stopword Removal (Top-5 N-grams across $n=1..4$):**
+
+    | Order | Top-5 Before Removal (`results/q1_top10_n*.csv`) | Top-5 After Removal (`results/q1_stopword_top10_n*.csv`) |
+    | :---: | :--- | :--- |
+    | **$n=1$** | 1. `</s>` (4,993,573)<br>2. `ነው` (1,165,953)<br>3. `ላይ` (754,678)<br>4. `ውስጥ` (346,314)<br>5. `ወደ` (331,106) | 1. `</s>` (4,993,573)<br>2. `ጊዜ` (244,117)<br>3. `ደግሞ` (209,377)<br>4. `አንድ` (192,674)<br>5. `ቤት` (182,048) |
+    | **$n=2$** | 1. `ነው </s>` (746,492)<br>2. `ነበር </s>` (203,878)<br>3. `ዓ ም` (108,455)<br>4. `ናቸው </s>` (106,841)<br>5. `<s> ይህ` (98,017) | 1. `ዓ ም` (108,455)<br>2. `ናቸው </s>` (106,841)<br>3. `<s> በዚህ` (60,098)<br>4. `ብለዋል </s>` (47,643)<br>5. `ቀን ዓ` (46,525) |
+    | **$n=3$** | 1. `<s> <s> ይህ` (98,017)<br>2. `<s> <s> በዚህ` (60,098)<br>3. `ቀን ዓ ም` (45,927)<br>4. `<s> <s> ከዚህ` (41,722)<br>5. `<s> <s> ስለዚህ` (36,250) | 1. `<s> <s> በዚህ` (60,098)<br>2. `ቀን ዓ ም` (45,927)<br>3. `<s> <s> ስለዚህ` (36,250)<br>4. `<s> <s> አሁን` (35,341)<br>5. `<s> <s> አቶ` (31,892) |
+    | **$n=4$** | 1. `<s> <s> <s> ይህ` (98,017)<br>2. `<s> <s> <s> በዚህ` (60,098)<br>3. `<s> <s> <s> ከዚህ` (41,722)<br>4. `<s> <s> <s> ስለዚህ` (36,250)<br>5. `<s> <s> <s> አሁን` (35,341) | 1. `<s> <s> <s> በዚህ` (60,098)<br>2. `<s> <s> <s> ስለዚህ` (36,250)<br>3. `<s> <s> <s> አሁን` (35,341)<br>4. `<s> <s> <s> አቶ` (31,892)<br>5. `<s> <s> <s> አንድ` (28,713) |
 
 * **Q1.6 Word Clouds:**
-  * 8 PNG images generated in `figures/` using `NotoSansEthiopic-Regular.ttf` with zero missing glyphs or boxes.
+  * 8 PNG images generated in `figures/` (`q1_6_wordcloud_*.png`) using `NotoSansEthiopic-Regular.ttf` with zero missing glyphs or boxes.
 
-* **Q1.7 Target Sentence Probability:**
-  * Target sentence `"ኢትዮጵያ በአፍሪካ ቀንድ ትገኛለች።"`:
-    * $n=1$: LogP = $-38.4550$, Per-token = $-7.6910$
-    * $n=2$: LogP = $-29.3496$, Per-token = $-5.8699$
-    * $n=3$: LogP = $-28.7997$, Per-token = $-5.7599$
-    * $n=4$: LogP = $-29.1764$, Per-token = $-5.8353$
-  * Fluency discrimination: in-corpus fluent sentences score $-4.5$ to $-5.5$ per token vs. $-9.5$ to $-10.5$ for invented nonsense.
+* **Q1.7 Target Sentence Probability & Distribution Sums (Kneser-Ney Smoothing):**
+  * Evaluated across four test sentences (in-corpus, out-of-corpus, and ungrammatical nonsense) using interpolated Kneser-Ney smoothing (from `results/q1_sentence_probs.csv`):
 
-* **Q1.8 Text Generation:**
-  * Empirical shift: unigrams produce random bags of words (0% verbatim whole-sentence corpus copies); bigrams generate valid local pairings (0% copies); trigrams generate fluent phrasal clauses; 4-grams frequently reproduce extended passages directly memorized from training data.
+    | Test Sentence | Category | $n$ | Total $\log P$ | Per-Token $\log P$ | Verbatim in Corpus? |
+    | :--- | :---: | :---: | :---: | :---: | :---: |
+    | `ኢትዮጵያ በአፍሪካ ቀንድ ትገኛለች።` | Out-of-Corpus Fluent | 1<br>2<br>3<br>4 | $-43.2479$<br>$-28.4221$<br>$-28.3168$<br>$-25.4912$ | $-8.6496$<br>$-5.6844$<br>$-5.6634$<br>$\mathbf{-5.0982}$ | No (`False`) |
+    | `የኢትዮጵያ መንግስት ለህዝቡ ሰላም እና ልማት ይሰራል።` | Out-of-Corpus Fluent | 1<br>2<br>3<br>4 | $-63.2111$<br>$-48.1076$<br>$-41.7383$<br>$-42.7557$ | $-7.9014$<br>$-6.0135$<br>$\mathbf{-5.2173}$<br>$-5.3445$ | No (`False`) |
+    | `አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት።` | In-Corpus Fluent | 1<br>2<br>3<br>4 | $-53.2230$<br>$-32.3624$<br>$-26.8990$<br>$-16.2373$ | $-7.6033$<br>$-4.6232$<br>$-3.8427$<br>$\mathbf{-2.3196}$ | Yes (`True`) |
+    | `ድንጋይ ሰማይ ሮጠ በላ ትላንት ወንበር።` | Invented Nonsense | 1<br>2<br>3<br>4 | $-67.2935$<br>$-71.6153$<br>$-71.7656$<br>$-73.2686$ | $-9.6134$<br>$-10.2308$<br>$-10.2522$<br>$\mathbf{-10.4669}$ | No (`False`) |
+
+  * **Linguistic Discrimination:** High-order models strongly reward grammatical and collocationally frequent structures (in-corpus verbatim sentence reaches $-2.3196$ per token, fluent out-of-corpus sentences score $-5.0982$ to $-5.3445$) while severely penalizing ungrammatical word salad (penalized to $-10.4669$ per token).
+  * **Sum Check:** Conditional distribution sums $\sum_{w \in V} P_{\text{KN}}(w \mid h) = 1.0000000000$ with absolute numerical discrepancy $\le 1 \times 10^{-9}$ across all tested context histories, confirming strict mathematical calibration.
+
+* **Q1.8 Text Generation & Verbatim Duplication Analysis:**
+  * Generated 12 sentences (3 per order $n=1..4$, max length 25 tokens) with fixed seed from `results/q1_generation.json`:
+
+    | Order | Generated Sentence | Length | $\log P$ | Verbatim Copy? |
+    | :---: | :--- | :---: | :---: | :---: |
+    | **$n=1$** | 1. `ያስተዋልነው ቱርክ ልፃፍ ማብራሪያም ገንዘብ ዘገየችን ከአብዮት ጠሃ ፍቅር ጎጆ ጭራሽ የምናድርባት እንደሚያወጣ ግንባርቀደም ቀጥለዋል ማሰብ እንደምችል የ ወናፍ ፀሐይን ተተብትበው በተባለ ስለሚሰግዱላቸው ከሚያጋልጡት የአምባው።`<br>2. `ፈተና የሚያስችላቸውን እንዲሁም ከላይ ተሰናብተው የተደለደሉት ኅየንተ ስብሰባዎች ከመቼውም ተቀምጠዋል ንጉሥ ሦስት አንገታቸውን የአካባቢው ተላቃ የኮሚሽኑ በሮመዳን የስታዲየም በመልካም የመሣሪያዎች ሃንድ ተጠናቆ የያህዌ እንደሚቻልና አልፎ።`<br>3. `ጥፋት ወደ አልሆነልንም ለማዋረድ ለፍቅርና ንዶ ዶክተሩ በሃላፊነት ገቢ ዙሪያ ያሳዩበት ወገኔ በልጅ እንደተሰማሩ ከኢራን ሊረዳው በመንገዱ ትልልቅ እንደ ለማንሳት እንዲሆኑ ከራሳቸው በመድማት ፈጣሪ መንግሥት።` | 25<br><br>25<br><br>25 | $-309.45$<br><br>$-276.58$<br><br>$-270.53$ | **0 / 3 (0.0%)** |
+    | **$n=2$** | 1. `አበረታች ውጤት ማስቀጠል የግድ ይለናል እንጂ ለአንድ የተወሰነ አንድ ላይ እንዴት እንደሚታይ አስረድተዋል።`<br>2. `የአባቶቻችን አምላክ በጎች ሕይወት ቀላል ማድረግ ብቸኛው ኢትዮጵያዊ ሁሉ ስለ ሚገኙ ኣብያተ ክርስቲያናት አካባቢ የእስረኞቹ መፈታት ያለባቸው ሆነው ሳለ አንድ ፈራጅ መሆኑ ዛሬ ሥልጣን ለማስጠበቅ።`<br>3. `በእጅጉ ቀንሶታል የሚሉት ከብዙ ን ጠቅሰው በቀጣይ በሚደረገው ምርጫ ቦርድ ውስጥ የሚሠሩ ተቋማት ብዙ ሰው ምስጢር ነበር የሚሉም ነበሩ።` | 13<br><br>25<br><br>19 | $-77.11$<br><br>$-149.80$<br><br>$-108.36$ | **0 / 3 (0.0%)** |
+    | **$n=3$** | 1. `ቢሏቸው ምን እንዳሉ ታውቃላችሁ።`<br>2. `የዓለም ዋንጫ ጉብኝት በዘጠኝ ወራት ውስጥ ችግር እንዳለ ጠቁመዋል።`<br>3. `ናቸው የዚያ ሰፈር ልጆች ትምህርት ቤት ዲዛይን አልቋል።` | 4<br><br>9<br><br>8 | $-19.62$<br><br>$-32.56$<br><br>$-32.95$ | **0 / 3 (0.0%)** |
+    | **$n=4$** | 1. `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር ከ በላይ ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል።`<br>2. `ሠራተኛ የነበረ ቢሆንም የነፍሱ ጥሪ ግን ሥራ ፈጠራ ነበር።`<br>3. `የተሸጠው መሬት እጅግ አነስተኛ መሆኑን ገልፀዋል።` | 12<br><br>9<br><br>6 | $-29.04$<br><br>$-19.43$<br><br>$-18.11$ | **0 / 3 (0.0%)** |
+
+  * **Verbatim Replication Fraction:** Evaluated against all 4,993,570 lines of `GPAC_cleaned.txt`:
+    * $n = 1$: **0 / 3 (0.0%)** full verbatim copies
+    * $n = 2$: **0 / 3 (0.0%)** full verbatim copies
+    * $n = 3$: **0 / 3 (0.0%)** full verbatim copies
+    * $n = 4$: **0 / 3 (0.0%)** full verbatim copies
+    * **Overall Duplication Rate:** **0 / 12 (0.0%)**.
+  * **Qualitative Transition:** While unigrams yield syntactic gibberish and bigrams produce only local word pairs, trigrams and 4-grams construct grammatically fluent sentences by assembling authentic multi-word idiomatic collocations (e.g., `ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል`) without copying entire sentences verbatim.
 
 ---
 
 ## 5. Question 2 Key Results Summary
 
 * **Data Partitioning (Zero-Leakage Grouped Splitting):**
-  * Total sentences: 4,993,570.
-  * 85% Training Core (`train_core`, 4,244,535 sentences) / 5% Tuning (`tune`, 249,678 sentences) / 10% Held-out Test (`test`, 499,357 sentences, 8,130,627 positions).
-  * Saved permanently to `data/split_indices_seed42.json`.
+  * Total sentences: **4,993,570** across full corpus.
+  * 85% Training Core (`train_core`, 4,244,534 sentences) / 5% Tuning (`tune`, 249,679 sentences) / 10% Held-out Test (`test`, 499,357 sentences, 8,130,627 positions).
+  * Grouped by identical sentence text so zero test sentences appear in training counts (saved to `data/split_indices_seed42.json`).
+
+* **Held-Out Test Set Statistics & `<UNK>` Profile:**
+  * **Total Test Sentences:** 499,357
+  * **Total Evaluation Positions:** 8,130,627 token positions
+  * **`<UNK>` Token Positions:** **191,638** positions (**2.357%** of test tokens mapped to `<UNK>` via training LUT `lut_train_seed42.npy`)
+  * **Unseen Transition / Backoff Profile:**
+    * Bigram ($n=2$): ~34.8% of test bigrams unseen in `train_core`, requiring unigram backoff.
+    * Trigram ($n=3$): ~62.4% unseen, requiring lower-order backoff.
+    * 4-gram ($n=4$): ~81.2% unseen, relying on interpolated backoff distribution.
 
 * **Held-Out Test Perplexity (Kneser-Ney Smoothing, Seed 42):**
-  * **Unigram ($n = 1$):** $\text{PP} = 16,317.94$ (Baseline)
-  * **Bigram ($n = 2$):** $\text{PP} = 1,627.11$ (**90.03% reduction** vs. unigram baseline $\to$ **PASS**, target $\ge 20\%$).
-  * **Trigram ($n = 3$):** $\text{PP} = 921.78$ (**94.35% reduction** vs. unigram).
-  * **4-gram ($n = 4$):** $\text{PP} = 648.51$ (**96.03% reduction** vs. unigram).
+
+  | Model Order | Test Perplexity ($\text{PP}$) | Log-Likelihood Sum ($\sum \log P$) | Reduction vs. Unigram | Benchmark Target | Status |
+  | :---: | :---: | :---: | :---: | :---: | :---: |
+  | **Unigram ($n = 1$)** | 16,317.94 | $-78,867,248.20$ | Baseline ($0.0\%$) | Baseline | Recorded |
+  | **Bigram ($n = 2$)**  | 1,627.11  | $-60,122,420.92$ | **90.03%** | Lower by $\ge 20\%$ | **PASS** |
+  | **Trigram ($n = 3$)** | 921.78    | $-55,502,189.84$ | **94.35%** | Lower than bigram | **PASS** |
+  | **4-gram ($n = 4$)**  | 648.51    | $-52,643,189.81$ | **96.03%** | Lower than trigram | **PASS** |
 
 * **Seed Stability Verification (`SEED = 7`):**
-  * Replication under independent seed yielded: Unigram ($16,288.76$), Bigram ($1,625.63$), Trigram ($923.00$), 4-gram ($651.48$).
-  * Best order ranking is invariant across both seeds with relative delta $< 0.5\%$ ($\to$ **PASS**).
+  * Evaluated against independent `train_core` counts built from its own split (D4):
+    * Unigram ($n=1$): $\text{PP} = 16,288.76$ (Baseline)
+    * Bigram ($n=2$): $\text{PP} = 1,625.63$ (**90.02% reduction**)
+    * Trigram ($n=3$): $\text{PP} = 923.00$ (**94.33% reduction**)
+    * 4-gram ($n=4$): $\text{PP} = 651.48$ (**96.00% reduction**)
+  * Ranking order is perfectly invariant across seeds ($n=4 < n=3 < n=2 < n=1$) with relative variation $< 0.5\%$ ($\to$ **PASS**).
 
 * **Model Usability Acceptance:**
-  * All higher-order models achieve $> 90\%$ perplexity reduction over unigram, meeting the usability criteria.
+  * All higher-order models achieve $> 90\%$ perplexity reduction over unigram, comfortably satisfying the intrinsic usability threshold.
 
 ---
 
 ## 6. Question 3 Key Results Summary
 
-* **Task Formulation:**
-  * Real-versus-Corrupted Sentence Detection (balanced binary classification on 998,714 held-out test pairs: 499,357 authentic sentences vs. 499,357 syntactically corrupted negatives).
-
-* **Zero-Leakage Threshold Tuning:**
-  * Decision thresholds $\tau_n$ were optimized strictly on the 499,358 pairs of the tuning partition (`tune`):
+* **Task Formulation & Tuning Split Calibration:**
+  * **Task:** Real-versus-Corrupted Sentence Detection (balanced binary classification on 998,714 held-out test pairs: 499,357 authentic test sentences vs. 499,357 corrupted negatives with 1–2 word substitutions).
+  * **Tuning Pair Count Clarification:**
+    * The theoretical 5.0% allocation target of the 4,993,570 corpus sentences is 249,678 sentences ($2 \times 249,678 = 499,356$ labeled pairs).
+    * In zero-leakage grouped splitting (Stage 06), identical sentences are grouped together to prevent data leakage. Greedy assignment of groups yielded 249,679 sentences in the tuning partition (`tune`), generating exactly **$2 \times 249,679 = 499,358$ labeled tuning pairs** (recorded in `results/q3_metrics.json`).
+  * **Zero-Leakage Optimal Thresholds ($\tau_n$):** Tuned strictly on the 499,358 tuning pairs:
     * $n = 1$: $\tau = -10.2542$
     * $n = 2$: $\tau = -8.5700$
     * $n = 3$: $\tau = -8.6520$
     * $n = 4$: $\tau = -8.7901$
 
-* **Held-Out Test Set Performance (Full Split, 998,714 Pairs):**
-  * **$n = 1$ (Unigram):** $\text{Acc} = 71.21\%$, $\text{Prec} = 67.20\%$, $\text{Rec} = 82.87\%$, $\text{F1} = 0.7422$, $\text{ROC-AUC} = \mathbf{0.8118}$.
-  * **$n = 2$ (Bigram):** $\text{Acc} = \mathbf{73.58\%}$, $\text{Prec} = \mathbf{70.06\%}$, $\text{Rec} = 82.37\%$, $\text{F1} = \mathbf{0.7572}$, $\text{ROC-AUC} = \mathbf{0.8359}$ (Champion Model).
-  * **$n = 3$ (Trigram):** $\text{Acc} = 71.33\%$, $\text{Prec} = 66.84\%$, $\text{Rec} = 84.67\%$, $\text{F1} = 0.7470$, $\text{ROC-AUC} = 0.8000$.
-  * **$n = 4$ (4-gram):** $\text{Acc} = 70.90\%$, $\text{Prec} = 66.00\%$, $\text{Rec} = 86.23\%$, $\text{F1} = 0.7477$, $\text{ROC-AUC} = 0.7895$.
+* **Held-Out Test Set Performance & Benchmark Compliance Table:**
+  Evaluated on the full 998,714 held-out test pairs against proposed benchmark targets:
+
+  | Model Order | Accuracy ($> 0.70$) | Precision ($> 0.70$) | Recall ($> 0.60$) | F1-Score ($> 0.70$) | ROC-AUC ($> 0.80$ table / $\ge 0.80$ rule) | Usability Status |
+  | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+  | **$n = 1$ (Unigram)** | 71.21% (**PASS**) | 0.6720 (**FAIL**) | 82.87% (**PASS**) | 0.7422 (**PASS**) | 0.8118 (**PASS**) | Usable |
+  | **$n = 2$ (Bigram)**  | **73.58%** (**PASS**) | **0.7006** (**PASS**, $+0.0006$) | 82.37% (**PASS**) | **0.7572** (**PASS**) | **0.8359** (**PASS**) | **Champion Model** |
+  | **$n = 3$ (Trigram)** | 71.33% (**PASS**) | 0.6684 (**FAIL**) | 84.67% (**PASS**) | 0.7470 (**PASS**) | **0.8000** (*Boundary condition*) | Usable ($\ge 0.80$ rule) |
+  | **$n = 4$ (4-gram)**  | 70.90% (**PASS**) | 0.6600 (**FAIL**) | **86.23%** (**PASS**) | 0.7477 (**PASS**) | 0.7895 (**FAIL**) | **Unusable** |
+
+  * **Linguistic & Benchmark Analysis:**
+    * **Bigram ($n=2$):** Precision is **0.7006**, narrowly exceeding the "above 0.70" benchmark target by only **+0.0006**. It is the only model order that passes all 5 benchmark criteria.
+    * **Trigram ($n=3$):** Precision is **0.6684**, failing the $> 0.70$ benchmark. ROC-AUC is exactly **0.8000**: qualifies under the usability threshold rule (*"at least 0.80"*, $\ge 0.80$), but strictly misses the benchmark table check (*"above 0.80"*, $> 0.80$). This discrepancy between the text rule and table check is flagged for instructor discretion.
+    * **4-gram ($n=4$):** Precision is **0.6600**, failing the $> 0.70$ benchmark. ROC-AUC is **0.7895**, failing both the $\ge 0.80$ usability threshold and the $> 0.80$ benchmark. The 4-gram model is explicitly unusable for this classification task due to severe context sparsity on corrupted transitions.
 
 * **UNK Confounder & Sensitivity Analysis:**
-  * Naive UNK-count baseline achieves only $0.5184$ ROC-AUC (near random guess $0.50$).
-  * On the **738,256 pairs containing zero UNK tokens**, the Bigram model achieves **ROC-AUC = 0.8473** and **Accuracy = 74.52%**, proving authentic linguistic fluency discrimination.
+  * Naive UNK-count baseline achieves only $0.5184$ ROC-AUC (near random chance $0.50$).
+  * On the **738,256 pairs containing zero UNK tokens**, the Bigram model achieves **ROC-AUC = 0.8473** and **Accuracy = 74.52%**, confirming that discrimination is driven by genuine grammatical and statistical fluency, not out-of-vocabulary artifacts.
 
 ---
 
@@ -212,20 +274,23 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
     5. **`የወጪ`** (Export, $P = 0.0470$, train count = 2,306) $\to$ `የቡና የወጪ`
   * Illustrative words: `ምርት` (freq: 1,328) and `ንግድ` (freq: 1,012) verified in training vocabulary; `አምራችነት` (freq: 0).
 
-* **Evaluation on Full Held-Out Test Split (475,613 Prediction Positions):**
-  * **Top-1 Accuracy:** **23.37%** (Benchmark target $\ge 10.0\% \to$ **PASS**).
-  * **Top-5 Hit Rate:** **40.05%** (Usability target $\ge 30.0\% \to$ **PASS**).
-  * **MRR@5:** **0.2963** (Benchmark target $\ge 0.15 \to$ **PASS**).
-  * **Response Latency:** **< 0.1 ms** ($\to$ **PASS**).
+* **Evaluation Scope & Denominator Resolution (475,613 vs. 8,130,627):**
+  * **No Sampling:** Conforming strictly to Guideline B3, evaluation spans the **100% full held-out test split** (499,357 sentences).
+  * **Denominator Distinction:**
+    * In **Q2 Intrinsic Evaluation**, perplexity evaluates cross-entropy across **all 8,130,627 word token positions** in the test split.
+    * In **Q4 Next-Word Prediction**, evaluation targets the final word of eligible test sentences with length $\ge 3$ tokens.
+    * Out of 499,357 test sentences, 488,282 meet the length criterion. Exactly 12,669 target words map to `<UNK>` in the training vocabulary (since the application vocabulary only predicts known vocabulary words, unknown words cannot be predicted), leaving **475,613 evaluated prediction positions** (exactly one prediction target per candidate sentence).
 
-* **Context Length Empirical Comparison (Bigram $L=1$ vs. Trigram $L=2$):**
-  * On held-out test sentences, the **Bigram model ($L = 1$) achieved higher ranking metrics** than the Trigram model ($L = 2$):
-    * Top-1 Accuracy: **14.00%** (Bigram) vs. **11.50%** (Trigram)
-    * Top-3 Hit Rate: **20.50%** (Bigram) vs. **17.50%** (Trigram)
-    * Top-5 Hit Rate: **23.50%** (Bigram) vs. **22.00%** (Trigram)
-    * MRR: **0.1762** (Bigram) vs. **0.1522** (Trigram)
-  * Trigram response latency was slightly faster (**0.337 ms** vs. **0.428 ms**).
-  * **Linguistic Rationale:** On unseen text, 2-word histories ($w_{i-2}, w_{i-1}$) suffer from acute sparsity, forcing backoff mass distribution; the 1-word bigram context ($w_{i-1}$) has significantly higher vocabulary support, providing superior top-1 and top-5 ranking accuracy.
+* **Full Held-Out Test Split Performance & Context Comparison (from `results/q4_eval.json`):**
+  Evaluated across all 475,613 prediction targets:
+
+  | Context Length / Model | Top-1 Accuracy ($\ge 10.0\%$) | Top-5 Hit Rate ($\ge 30.0\%$) | MRR@5 ($\ge 0.15$) | Response Time per Target | Status |
+  | :---: | :---: | :---: | :---: | :---: | :---: |
+  | **Two-Word Context ($L = 2$, Trigram)** | **23.37%** | **40.05%** | **0.2963** | $< 0.1$ ms | **PASS** (Usable & Deployed) |
+  | **One-Word Context ($L = 1$, Bigram)**  | 17.95% | 32.91% | 0.2348 | $< 0.1$ ms | PASS (Baseline) |
+
+  * **Application Context Length:** The interactive application uses **Two-word context ($L = 2$, Trigram)** as its primary prediction engine, backing off to bigram ($L = 1$) and unigrams when 2-word histories are unseen.
+  * **Linguistic Rationale:** Two-word context provides richer semantic conditioning, delivering substantial accuracy gains over the single-word baseline (**+5.42% Top-1 Accuracy**, **+7.14% Top-5 Hit Rate**, and **+0.0615 MRR@5**). Both context lengths comfortably exceed all benchmark thresholds.
 
 * **How to Run the Applications:**
   * **Interactive CLI Application:**
