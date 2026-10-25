@@ -133,21 +133,26 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
     * Unseen pair `('ሰማይ', 'ድንጋይ')` receives $P = 0.0$.
 
 * **Q1.5 Stopwords & Filtering Analysis:**
-  * **Linguistic Justification for 30 Stopwords:**
-    The stopword list comprises 30 closed-class syntactic function words categorized by grammatical role:
-    * *Prepositions (7):* `በ` (in/by), `ከ` (from), `ወደ` (to/toward), `ስለ` (about), `እንደ` (like/as), `ላይ` (on/upon), `ውስጥ` (inside/within).
-    * *Conjunctions (5):* `እና` (and), `ግን` (but), `ነገር` (however/thing), `ወይም` (or), `ሆኖም` (nonetheless).
-    * *Copulas & Auxiliary Verbs (6):* `ነው` (is), `ነበር` (was), `ናት` (is [fem]), `ናቸው` (are), `አለ` (there is), `ይሆናል` (will be).
-    * *Pronouns & Demonstratives (9):* `ይህ` (this), `እኔ` (I), `እኛ` (we), `እሱ` (he), `እሷ` (she), `እነሱ` (they), `ምን` (what), `ማን` (who), `እነዚህ` (these).
-    * *Adverbs & Focus Particles (3):* `ብቻ` (only), `እንዲሁም` (as well as), `በጣም` (very).
-  * **Before vs. After Stopword Removal (Top-5 N-grams across $n=1..4$):**
+  * **Linguistic Justification for 30 Core Stopwords (5 Categories):**
+    The stopword list contains 30 closed-class function words organized into five syntactic categories:
+    * *Prepositions (7):* `በ` (in/by/at), `ከ` (from/out of), `ወደ` (to/toward), `ስለ` (about/concerning), `እንደ` (like/as), `ላይ` (on/upon), `ውስጥ` (inside/within).
+    * *Conjunctions & Connectives (5):* `እና` (and), `ግን` (but/yet), `ነገር ግን` (however/nevertheless), `ወይም` (or), `ሆኖም` (nonetheless/although). *(Note: bare `ነገር` is a content noun meaning "thing/matter"; only the compound connective unit `ነገር ግን` functions as an adversative conjunction).*
+    * *Copulas & Auxiliary Verbs (6):* `ነው` (is [present 3m copula]), `ነበር` (was [past auxiliary]), `ናት` (is [present 3f copula]), `ናቸው` (are [present 3p copula]), `አለ` (there is [existential copula]), `ይሆናል` (will be [future auxiliary]).
+    * *Pronouns & Demonstratives (9):*
+      - Personal pronouns (5): `እኔ` (I), `እኛ` (we), `እሱ` (he), `እሷ` (she), `እነሱ` (they).
+      - Demonstrative pronouns (2): `ይህ` (this), `እነዚህ` (these).
+      - Interrogative pronouns (2): `ምን` (what), `ማን` (who).
+    * *Adverbs & Focus Particles (3):* `ብቻ` (only [restrictive focus particle]), `እንዲሁም` (as well as / likewise), `በጣም` (very [degree adverb]).
+  * **Clitic Attachment & Exclusion Rationale:**
+    Matching is applied to whole tokens and to the bare forms of prepositional clitics. Amharic regularly attaches prepositional proclitics (`በ-`, `ከ-`, `ለ-`, `ስለ-`) directly to nominal and pronominal stems, creating fused compound orthographic words (e.g. `በዚህ` = `በ` + `ዚህ` *"in this"*, `ከዚህ` = `ከ` + `ዚህ` *"from this"*, `ስለዚህ` = `ስለ` + `ዚህ` *"therefore"*). Sentence-boundary tags (`<s>`, `</s>`) are strictly excluded from both the before and after rankings. The list deliberately excludes `ደግሞ` and `አንድ`: `ደግሞ` carries substantive adverbial aspect (*"again / on the other hand"*) with contrastive discourse function, while `አንድ` functions primarily as a cardinal numeral (*"one"*) rather than a grammatical determiner (as Amharic lacks an indefinite article).
+  * **Before vs. After Stopword Removal (Top-5 Pure Lexical N-grams across $n=1..4$, from `results/`):**
 
-    | Order | Top-5 Before Removal (`results/q1_top10_n*.csv`) | Top-5 After Removal (`results/q1_stopword_top10_n*.csv`) |
-    | :---: | :--- | :--- |
-    | **$n=1$** | 1. `</s>` (4,993,573)<br>2. `ነው` (1,165,953)<br>3. `ላይ` (754,678)<br>4. `ውስጥ` (346,314)<br>5. `ወደ` (331,106) | 1. `</s>` (4,993,573)<br>2. `ጊዜ` (244,117)<br>3. `ደግሞ` (209,377)<br>4. `አንድ` (192,674)<br>5. `ቤት` (182,048) |
-    | **$n=2$** | 1. `ነው </s>` (746,492)<br>2. `ነበር </s>` (203,878)<br>3. `ዓ ም` (108,455)<br>4. `ናቸው </s>` (106,841)<br>5. `<s> ይህ` (98,017) | 1. `ዓ ም` (108,455)<br>2. `ናቸው </s>` (106,841)<br>3. `<s> በዚህ` (60,098)<br>4. `ብለዋል </s>` (47,643)<br>5. `ቀን ዓ` (46,525) |
-    | **$n=3$** | 1. `<s> <s> ይህ` (98,017)<br>2. `<s> <s> በዚህ` (60,098)<br>3. `ቀን ዓ ም` (45,927)<br>4. `<s> <s> ከዚህ` (41,722)<br>5. `<s> <s> ስለዚህ` (36,250) | 1. `<s> <s> በዚህ` (60,098)<br>2. `ቀን ዓ ም` (45,927)<br>3. `<s> <s> ስለዚህ` (36,250)<br>4. `<s> <s> አሁን` (35,341)<br>5. `<s> <s> አቶ` (31,892) |
-    | **$n=4$** | 1. `<s> <s> <s> ይህ` (98,017)<br>2. `<s> <s> <s> በዚህ` (60,098)<br>3. `<s> <s> <s> ከዚህ` (41,722)<br>4. `<s> <s> <s> ስለዚህ` (36,250)<br>5. `<s> <s> <s> አሁን` (35,341) | 1. `<s> <s> <s> በዚህ` (60,098)<br>2. `<s> <s> <s> ስለዚህ` (36,250)<br>3. `<s> <s> <s> አሁን` (35,341)<br>4. `<s> <s> <s> አቶ` (31,892)<br>5. `<s> <s> <s> አንድ` (28,713) |
+    | Order | Top-5 Before Removal (`results/q1_top10_n*.csv`) | Top-5 After Removal (`results/q1_stopword_top10_n*.csv`) | Filter Impact & Observations |
+    | :---: | :--- | :--- | :--- |
+    | **$n=1$** | 1. `ነው` (1,165,953)<br>2. `ላይ` (754,678)<br>3. `ውስጥ` (346,314)<br>4. `ወደ` (331,106)<br>5. `እና` (318,942) | 1. `ጊዜ` (244,117)<br>2. `ደግሞ` (209,377)<br>3. `አንድ` (192,674)<br>4. `ቤት` (182,048)<br>5. `አቶ` (169,169) | All top-5 function words (`ነው`, `ላይ`, `ውስጥ`, `ወደ`, `እና`) successfully eliminated; open-class nouns and titles rise. |
+    | **$n=2$** | 1. `ዓ ም` (108,455)<br>2. `ቀን ዓ` (46,525)<br>3. `ነገር ግን` (44,744)<br>4. `ዶ ር` (35,624)<br>5. `ማለት ነው` (32,386) | 1. `ዓ ም` (108,455)<br>2. `ቀን ዓ` (46,525)<br>3. `ዶ ር` (35,624)<br>4. `አዲስ አበባ` (31,388)<br>5. `በ ዓ` (28,486) | Function bigrams `ነገር ግን` (connective) and `ማለት ነው` (copular phrase) removed; entity bigram `አዲስ አበባ` enters top 5. |
+    | **$n=3$** | 1. `ቀን ዓ ም` (45,927)<br>2. `በ ዓ ም` (28,127)<br>3. `እ ኤ አ` (16,731)<br>4. `ዓ ም ኢሳት` (9,789)<br>5. `ም ኢሳት ዜና` (9,700) | 1. `ቀን ዓ ም` (45,927)<br>2. `በ ዓ ም` (28,127)<br>3. `እ ኤ አ` (16,731)<br>4. `ዓ ም ኢሳት` (9,789)<br>5. `ም ኢሳት ዜና` (9,700) | Top trigrams are stable calendar and broadcast collocations containing no bare stopwords. |
+    | **$n=4$** | 1. `ቀን ዓ ም ኢሳት` (9,786)<br>2. `ዓ ም ኢሳት ዜና` (9,700)<br>3. `እ ኤ አ በ` (8,613)<br>4. `የካቲት ቀን ዓ ም` (2,952)<br>5. `መጋቢት ቀን ዓ ም` (2,908) | 1. `ቀን ዓ ም ኢሳት` (9,786)<br>2. `ዓ ም ኢሳት ዜና` (9,700)<br>3. `እ ኤ አ በ` (8,613)<br>4. `የካቲት ቀን ዓ ም` (2,952)<br>5. `መጋቢት ቀን ዓ ም` (2,908) | Top 4-grams comprise calendar news formulas; zero boundary tags or standalone stopwords survive. |
 
 * **Q1.6 Word Clouds:**
   * 8 PNG images generated in `figures/` (`q1_6_wordcloud_*.png`) using `NotoSansEthiopic-Regular.ttf` with zero missing glyphs or boxes.
