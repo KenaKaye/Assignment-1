@@ -42,14 +42,18 @@ def get_fallback_predictor() -> AmharicPredictor:
 
     import pickle
 
-    pkl_path = ROOT_DIR / "models" / "ngram_predictor.pkl"
-    if pkl_path.exists():
-        try:
-            with open(pkl_path, "rb") as f:
-                _FALLBACK_PREDICTOR = pickle.load(f)
-            return _FALLBACK_PREDICTOR
-        except Exception:
-            pass
+    pkl_candidates = [
+        ROOT_DIR / "models" / "ngram_predictor.pkl",
+        ROOT_DIR / "archive_100k" / "models" / "ngram_predictor.pkl",
+    ]
+    for pkl_path in pkl_candidates:
+        if pkl_path.exists():
+            try:
+                with open(pkl_path, "rb") as f:
+                    _FALLBACK_PREDICTOR = pickle.load(f)
+                return _FALLBACK_PREDICTOR
+            except Exception:
+                pass
 
     from main import load_training_sentences
 

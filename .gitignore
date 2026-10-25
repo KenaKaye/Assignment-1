@@ -13,6 +13,11 @@ data/GPAC.txt*
 data/compress.py
 Docs/
 
+# Archived 100k version artifacts
+archive_100k/
+archive_100k_artifacts/
+nlp_assignment1_artifacts/
+
 # Ensure data directory and metadata are tracked
 !data/
 !data/*.json
