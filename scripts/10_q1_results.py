@@ -138,7 +138,12 @@ def main() -> None:
         assert diff <= 1e-9, f"Order {n} probability sum {prob_sum} deviates by {diff:.2e}"
         print(f"  [Sum check n={n}] counts={c_sum:,}, sum(P)={prob_sum:.10f}, diff={diff:.2e}")
 
-        top10_idx = top_k_indices(counts[n], 10)
+        # Filter out boundary markers (PAD_ID / <s>, EOS_ID / </s>) so top 10 contains authentic lexical words
+        valid_mask = ~np.isin(ngrams[n], [PAD_ID, EOS_ID]).any(axis=1)
+        valid_indices = np.where(valid_mask)[0]
+        top10_sub_idx = top_k_indices(counts[n][valid_indices], 10)
+        top10_idx = valid_indices[top10_sub_idx]
+
         csv_file = RESULTS_DIR / f"q1_top10_n{n}.csv"
         with open(csv_file, "w", encoding="utf-8", newline="\n") as f:
             writer = csv.writer(f)
@@ -200,11 +205,12 @@ def main() -> None:
                 text_ngram = " ".join(id2w.get(tid, f"<ID:{tid}>") for tid in row)
                 writer.writerow([text_ngram, int(counts[n][idx])])
 
-        # Filter out rows that contain any stopword ID
+        # Filter out rows that contain any stopword ID OR boundary markers (PAD_ID, EOS_ID)
         ng_n = ngrams[n]
         is_stop = np.zeros(len(ng_n), dtype=bool)
+        excluded_ids = list(stopword_ids) + [PAD_ID, EOS_ID]
         for col_idx in range(n):
-            is_stop |= np.isin(ng_n[:, col_idx], list(stopword_ids))
+            is_stop |= np.isin(ng_n[:, col_idx], excluded_ids)
 
         filtered_indices = np.where(~is_stop)[0]
         sorted_rel = top_k_indices(counts[n][filtered_indices], min(200, len(filtered_indices)))

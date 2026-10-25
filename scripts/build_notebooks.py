@@ -356,6 +356,26 @@ for rel in ARTIFACTS:
         total_bytes += os.path.getsize(dst)
         copied_count += 1
 
+# Include key model count arrays needed for the local interactive CLI and Next.js Web UI
+app_artifacts = [
+    "data/counts/train_seed42/order1_ngrams.npy",
+    "data/counts/train_seed42/order1_counts.npy",
+    "data/counts/train_seed42/order2_ngrams.npy",
+    "data/counts/train_seed42/order2_counts.npy",
+    "data/counts/train_seed42/order3_ngrams.npy",
+    "data/counts/train_seed42/order3_counts.npy",
+    "data/counts/train_seed42/lut_train_seed42.npy",
+]
+for rel in app_artifacts:
+    src = os.path.join("/content/NLP_Assignment1", rel)
+    dst = os.path.join(EXPORT, rel)
+    if os.path.exists(src):
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(src, dst)
+        total_bytes += os.path.getsize(dst)
+        copied_count += 1
+        print(f"Included model artifact in export: {rel} ({os.path.getsize(dst):,} bytes)")
+
 print(f"Exported {copied_count} canonical artifacts: {total_bytes:,} bytes ({round(total_bytes / 2**20, 2)} MiB)")
 shutil.make_archive("/content/nlp_assignment1_artifacts", "zip", EXPORT)
 print("Created /content/nlp_assignment1_artifacts.zip")"""))

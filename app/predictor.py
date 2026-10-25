@@ -55,11 +55,7 @@ def get_fallback_predictor() -> AmharicPredictor:
             except Exception:
                 pass
 
-    from main import load_training_sentences
-
-    train_sents = load_training_sentences()
     predictor = AmharicPredictor()
-    predictor.train(train_sents)
     _FALLBACK_PREDICTOR = predictor
     return _FALLBACK_PREDICTOR
 
