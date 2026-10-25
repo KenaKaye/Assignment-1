@@ -376,31 +376,45 @@ for rel in app_artifacts:
         copied_count += 1
         print(f"Included model artifact in export: {rel} ({os.path.getsize(dst):,} bytes)")
 
-print(f"Exported {copied_count} canonical artifacts: {total_bytes:,} bytes ({round(total_bytes / 2**20, 2)} MiB)")
-shutil.make_archive("/content/nlp_assignment1_artifacts", "zip", EXPORT)
-print("Created /content/nlp_assignment1_artifacts.zip")"""))
-
-    cells.append(md_cell("Artifacts bundled into zip."))
-
-    # Cell 11: Checksums
-    cells.append(code_cell("""import os, shutil
-
-os.chdir("/content/NLP_Assignment1")
-
+# Include manifest, checksums, and run log
 for fname in ["checksums.json", "manifest.json", "artifact_list.json"]:
     p = os.path.join("data", fname)
     if os.path.exists(p):
-        shutil.copy2(p, os.path.join(EXPORT, "data", fname))
+        dst = os.path.join(EXPORT, "data", fname)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        shutil.copy2(p, dst)
         print(f"Included {fname} in export.")
 
 log_p = os.path.join("results", "run_log.jsonl")
 if os.path.exists(log_p):
-    shutil.copy2(log_p, os.path.join(EXPORT, "results", "run_log.jsonl"))
+    dst = os.path.join(EXPORT, "results", "run_log.jsonl")
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    shutil.copy2(log_p, dst)
     print("Included run_log.jsonl in export.")
 
-print("Export checksum verification bundle ready.")"""))
+print(f"Exported {copied_count} canonical artifacts: {total_bytes:,} bytes ({round(total_bytes / 2**20, 2)} MiB)")
 
-    cells.append(md_cell("Checksum bundle exported."))
+zip_path = "/content/nlp_assignment1_artifacts.zip"
+shutil.make_archive("/content/nlp_assignment1_artifacts", "zip", EXPORT)
+print(f"Created {zip_path} ({round(os.path.getsize(zip_path) / 2**20, 2)} MiB)")
+
+# Save directly to Google Drive so it appears in MyDrive
+drive_dest = "/content/drive/MyDrive/nlp_assignment1_artifacts.zip"
+if os.path.exists("/content/drive/MyDrive"):
+    shutil.copy2(zip_path, drive_dest)
+    print(f"Successfully copied archive to Google Drive: {drive_dest}")
+else:
+    print("Google Drive not mounted at /content/drive/MyDrive. Archive remains at /content/nlp_assignment1_artifacts.zip")
+
+# Optional direct download via browser
+try:
+    from google.colab import files
+    print("Triggering browser download...")
+    files.download(zip_path)
+except Exception as e:
+    print("Direct browser download skipped:", e)"""))
+
+    cells.append(md_cell("Artifacts bundled into zip and saved to Google Drive."))
 
     cells.append(md_cell("""### Next Steps: PC Download and Local Verification
 
