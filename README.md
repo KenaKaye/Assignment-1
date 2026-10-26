@@ -23,7 +23,6 @@ The following architectural and methodological decisions govern this implementat
 
 ### 2026-10-24 Amendment & Grouped Splitting
 
-- **Retirement of Prefix Splits:** Legacy seed-42 and seed-7 splits derived from the first 100,000 sentences were retired and moved to `output/data/archive_100k_prefix/`.
 - **Zero-Leakage Grouped Splitting (Stage 06):** Identical sentence texts form a single group. All occurrences of any sentence are assigned strictly to train or test (no duplicate sentence text appears in both train and test). Test target is 10% and tuning target is 5% of all sentences, filled greedily in seeded order (`np.random.default_rng(seed)`).
 - **Environment & NumPy Pin:** Python 3.12, NumPy pinned to `2.1.3` (required for deterministic RNG permutation).
 - **No Sampling:** Full held-out splits evaluated across Q2, Q3, and Q4. Q4 runtime exception is withdrawn.
@@ -141,7 +140,7 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     * **Duplicates Retained:** Among valid sentences, **734,596 (14.71%)** are identical verbatim duplicates of previously seen sentences. Duplicates are retained in the cleaned corpus to preserve true empirical natural language frequency distributions (per Step 0 Item 8 and Decision D5). In Q2, data leakage is prevented via zero-leakage grouped splitting so that duplicate sentences are never split across train and test partitions.
   * **Type-Token Ratio (TTR) Analysis & The Heaps' Law Sampling Caveat:**
 
-    * **The Classical Sampling Caveat:** Raw Type-Token Ratio is fundamentally dependent on corpus length. According to Heaps' Law ($V = K \cdot N^\beta$ with $0 < \beta < 1$), vocabulary growth slows sub-linearly as corpus size expands. Consequently, raw $\text{TTR} = \frac{V}{N} = K \cdot N^{\beta - 1}$ is a monotonically decreasing function of token count $N$. A raw TTR of $0.0249$ on a massive corpus of 76.2 million tokens cannot be compared directly with the TTR of smaller corpora (e.g., a 100k-sentence sample where $\text{TTR} \approx 0.157$).
+    * **The Classical Sampling Caveat:** Raw Type-Token Ratio is fundamentally dependent on corpus length. According to Heaps' Law ($V = K \cdot N^\beta$ with $0 < \beta < 1$), vocabulary growth slows sub-linearly as corpus size expands. Consequently, raw $\text{TTR} = \frac{V}{N} = K \cdot N^{\beta - 1}$ is a monotonically decreasing function of token count $N$. A raw TTR of $0.0249$ on a massive corpus of 76.2 million tokens cannot be compared directly with the TTR of smaller corpora (where $\text{TTR}$ would appear artificially higher on smaller samples).
     * **Length-Normalized Lexical Diversity (Herdan's $C$):**
 
       $$

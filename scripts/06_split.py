@@ -3,8 +3,6 @@
 Identical sentences (same text in GPAC_cleaned.txt) form one group. Every group goes
 entirely to one side, so no test sentence text appears in the training counts.
 
-Replaces the legacy 100k-prefix split, which is archived and not used.
-
 Produces (for seed s in {42, 7}):
 - data/split_indices_seed{s}.json with keys:
   seed, numpy_version, total_sentences, n_groups, rule,
