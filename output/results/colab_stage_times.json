@@ -1,0 +1,14 @@
+{
+  "scripts/01_assess_raw.py": 99.4,
+  "scripts/02_build_cleaned.py": 137.8,
+  "scripts/03_verify_cleaned.py": 335.4,
+  "scripts/04_build_vocab_tokens.py": 244.0,
+  "scripts/06_split.py": 55.9,
+  "scripts/07_count_full.py": 676.9,
+  "scripts/08_count_train.py --seed 42": 709.8,
+  "scripts/08_count_train.py --seed 7": 579.6,
+  "scripts/10_q1_results.py": 340.3,
+  "scripts/11_q2_perplexity.py": 612.0,
+  "scripts/12_q3_extrinsic.py": 541.7,
+  "scripts/13_q4_eval.py": 2349.0
+}

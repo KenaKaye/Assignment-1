@@ -28,44 +28,14 @@ from scripts.common import (
     UNK_ID,
     WORD_RE,
 )
-from app.model_store import get_model_store
-from suggest import AmharicPredictor, ETHIOPIC_WORD_REGEX
+from app.model_store import get_model_store, ModelStore
 
-_FALLBACK_PREDICTOR: Optional[AmharicPredictor] = None
-
-
-def get_fallback_predictor() -> AmharicPredictor:
-    """Fallback in-memory predictor if Colab count arrays have not yet been downloaded."""
-    global _FALLBACK_PREDICTOR
-    if _FALLBACK_PREDICTOR is not None:
-        return _FALLBACK_PREDICTOR
-
-    import pickle
-
-    pkl_candidates = [
-        ROOT_DIR / "models" / "ngram_predictor.pkl",
-        ROOT_DIR / "archive_100k" / "models" / "ngram_predictor.pkl",
-    ]
-    for pkl_path in pkl_candidates:
-        if pkl_path.exists():
-            try:
-                with open(pkl_path, "rb") as f:
-                    _FALLBACK_PREDICTOR = pickle.load(f)
-                return _FALLBACK_PREDICTOR
-            except Exception:
-                pass
-
-    predictor = AmharicPredictor()
-    _FALLBACK_PREDICTOR = predictor
-    return _FALLBACK_PREDICTOR
+ETHIOPIC_WORD_REGEX = WORD_RE
 
 
-def get_predictor():
-    """Returns the active predictor or model store."""
-    store = get_model_store()
-    if store.is_ready:
-        return store
-    return get_fallback_predictor()
+def get_predictor() -> ModelStore:
+    """Returns the active memory-mapped model store."""
+    return get_model_store()
 
 
 def suggest_candidates(text: str, n: int = 3, k: int = 5) -> Dict[str, Any]:
@@ -150,30 +120,14 @@ def suggest_candidates(text: str, n: int = 3, k: int = 5) -> Dict[str, Any]:
             "suggestions": suggestions,
         }
 
-    # Fallback to in-memory predictor
-    predictor = get_fallback_predictor()
-    raw_suggs, strategy, _ = predictor.suggest(text, context_len=context_len, top_k=k)
+    # Store not ready
     latency_ms = (time.perf_counter() - t_start) * 1000.0
-
-    if "trigram" in strategy and "backoff" not in strategy and "fallback" not in strategy:
-        model_used = 3
-    elif "bigram" in strategy and "fallback" not in strategy:
-        model_used = 2
-    else:
-        model_used = 1
-
-    is_fallback = (model_used < n) or ("fallback" in strategy) or ("backoff" in strategy)
-    suggestions = [
-        {"word": w, "probability": round(float(p), 4)}
-        for w, p in raw_suggs
-    ]
-
     return {
         "input_tail": input_tail,
         "requested_n": n,
-        "model_used": model_used,
-        "fallback": is_fallback,
-        "strategy": strategy,
+        "model_used": 0,
+        "fallback": True,
+        "strategy": "model_not_ready",
         "latency_ms": round(latency_ms, 2),
-        "suggestions": suggestions,
+        "suggestions": [],
     }

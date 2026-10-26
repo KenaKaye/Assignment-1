@@ -13,7 +13,7 @@ from pathlib import Path
 # Add repo root to import common
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scripts.common import DATA_DIR, REPO_ROOT
+from scripts.common import DATA_DIR, OUTPUT_DIR, REPO_ROOT, RESULTS_DIR
 
 # Relative paths of canonical artifacts marked "Yes" for commit/export
 CANONICAL_ARTIFACTS = [
@@ -40,6 +40,14 @@ CANONICAL_ARTIFACTS = [
     "results/q1_stopword_top10_n2.csv",
     "results/q1_stopword_top10_n3.csv",
     "results/q1_stopword_top10_n4.csv",
+    "results/q1_wordcloud_n1_before.csv",
+    "results/q1_wordcloud_n1_after.csv",
+    "results/q1_wordcloud_n2_before.csv",
+    "results/q1_wordcloud_n2_after.csv",
+    "results/q1_wordcloud_n3_before.csv",
+    "results/q1_wordcloud_n3_after.csv",
+    "results/q1_wordcloud_n4_before.csv",
+    "results/q1_wordcloud_n4_after.csv",
     "results/q1_sentence_probs.csv",
     "results/q1_generation.json",
     "results/q2_perplexity.json",
@@ -58,7 +66,7 @@ def write_artifact_list() -> list[str]:
     out_file = DATA_DIR / "artifact_list.json"
 
     # Ensure results/run_log.jsonl exists
-    run_log = REPO_ROOT / "results" / "run_log.jsonl"
+    run_log = RESULTS_DIR / "run_log.jsonl"
     if not run_log.exists():
         run_log.parent.mkdir(parents=True, exist_ok=True)
         run_log.touch()
@@ -72,7 +80,7 @@ def get_existing_artifacts() -> list[str]:
     """Return relative paths of canonical artifacts that currently exist on disk."""
     existing = []
     for rel_path in CANONICAL_ARTIFACTS:
-        p = REPO_ROOT / rel_path
+        p = OUTPUT_DIR / rel_path
         if p.exists():
             existing.append(rel_path)
     return existing

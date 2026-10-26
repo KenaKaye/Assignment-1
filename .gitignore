@@ -6,11 +6,16 @@
 *.tar.gz
 *.zip
 *.ZIP
-data/*.txt
-data/*.TXT
-data/*.gz
-data/GPAC.txt*
-data/compress.py
+output/data/*.txt
+output/data/*.TXT
+output/data/*.gz
+output/data/GPAC.txt*
+output/data/compress.py
+output/data/counts/
+output/data/*.npy
+output/data/sentence_assessment.tsv
+output/data/vocab.tsv
+data/
 Docs/
 
 # Archived 100k version artifacts
@@ -18,11 +23,20 @@ archive_100k/
 archive_100k_artifacts/
 nlp_assignment1_artifacts/
 
-# Ensure data directory and metadata are tracked
-!data/
-!data/*.json
-!data/README.md
-!data/.gitkeep
+# Ensure output directory and metadata are tracked
+!output/
+!output/figures/
+!output/figures/*
+!output/results/
+!output/results/*
+!output/data/
+output/data/split_indices_*.json
+!output/data/artifact_list.json
+!output/data/checksums.json
+!output/data/manifest.json
+!output/data/profile_counts.json
+!output/data/README.md
+!output/data/.gitkeep
 
 # Large serialized models
 *.pkl

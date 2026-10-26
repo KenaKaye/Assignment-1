@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.common import (
     CHECKSUMS_FILE,
+    DATA_DIR,
     REPO_ROOT,
     compute_sha256,
 )
@@ -37,7 +38,7 @@ def main() -> None:
 
     if not checksums:
         print("[WARN] data/checksums.json is empty!")
-    artifact_list_file = REPO_ROOT / "data" / "artifact_list.json"
+    artifact_list_file = DATA_DIR / "artifact_list.json"
     if artifact_list_file.exists():
         with open(artifact_list_file, "r", encoding="utf-8") as f:
             canonical_items = set(json.load(f))
@@ -53,7 +54,10 @@ def main() -> None:
     missing_files = []
 
     for rel_path, expected_hash in sorted(target_checksums.items()):
-        full_path = REPO_ROOT / rel_path
+        # Check both OUTPUT_DIR / rel_path and REPO_ROOT / rel_path
+        full_path = REPO_ROOT / "output" / rel_path
+        if not full_path.exists():
+            full_path = REPO_ROOT / rel_path
         if not full_path.exists():
             missing_files.append(rel_path)
             print(f"  [MISSING] {rel_path}")
@@ -82,7 +86,7 @@ def main() -> None:
         print("\n[FAIL] Artifact verification failed. Do NOT run notebooks or application until resolved.")
         sys.exit(1)
 
-    raw_corpus = REPO_ROOT / "data" / "GPAC.txt"
+    raw_corpus = DATA_DIR / "GPAC.txt"
     if raw_corpus.exists():
         raw_hash = compute_sha256(raw_corpus)
         expected_raw = "977706859188f7598ca97a29d7203d86926c11ede591fba31915c74ae9eabcfa"

@@ -21,6 +21,8 @@ if str(ROOT_DIR) not in sys.path:
 from scripts.kn_lib import KneserNeyModel
 
 TRAIN_COUNTS_DIR = ROOT_DIR / "data" / "counts" / "train_seed42"
+if not TRAIN_COUNTS_DIR.exists():
+    TRAIN_COUNTS_DIR = ROOT_DIR / "output" / "data" / "counts" / "train_seed42"
 VOCAB_FILE = TRAIN_COUNTS_DIR / "vocab_train.tsv"
 
 _STORE_INSTANCE: ModelStore | None = None
@@ -58,14 +60,34 @@ class ModelStore:
                     self.w2id[word] = tid
                     self.id2w[tid] = word
 
-        # Determine available orders
+        # Check for precomputed model cache for sub-second startup
+        cache_path = self.counts_dir / "kn_cache_order3.pkl"
+        if cache_path.exists():
+            import pickle
+            try:
+                with open(cache_path, "rb") as f:
+                    self.kn_model = pickle.load(f)
+                self._is_ready = True
+                return
+            except Exception:
+                pass
+
+        # Determine available orders (capped at 3 for predictive text application)
         max_order = 3
-        for o in range(1, 5):
+        for o in range(1, 4):
             if (self.counts_dir / f"order{o}_ngrams.npy").exists():
                 max_order = o
 
         # Memory-map n-gram and count arrays read-only
         self.kn_model = KneserNeyModel.load_from_dir(self.counts_dir, max_order=max_order, mmap_mode="r")
+        
+        # Save cache for instant subsequent startups
+        try:
+            import pickle
+            with open(cache_path, "wb") as f:
+                pickle.dump(self.kn_model, f, protocol=pickle.HIGHEST_PROTOCOL)
+        except Exception:
+            pass
         self._is_ready = True
 
     @property
