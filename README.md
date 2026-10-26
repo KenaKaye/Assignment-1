@@ -319,9 +319,62 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     - `ደግሞ` (*"again / moreover / on the other hand"*): Expresses contrastive or additive discourse aspect rather than empty grammatical glue.
     - `አንድ` (*"one"*): Functions primarily as a cardinal numeral. Amharic has no indefinite article; `አንድ` acts as a meaningful quantifier.
 
-* **Q1.6 Word Clouds:**
+* **Q1.6 Word Clouds for $n = 1, 2, 3, 4$ Before and After Stopword Removal:**
 
-  * 8 PNG images generated in `figures/` (`q1_6_wordcloud_*.png`) using `NotoSansEthiopic-Regular.ttf` with zero missing glyphs or boxes.
+  * **Visualization Specifications & Inventory:**
+    Eight dedicated high-resolution figures are preserved in `figures/` (`q1_6_wordcloud_*.png`). Every visual features an explicit n-gram order title, filtering designation, and scaling measure, rendered using Google `NotoSansEthiopic-Regular.ttf` with UTF-8 encoding (zero character overlap, clipping, or box artifacts):
+
+    | Figure File | Order ($n$) | Condition & Filter | Stated Size Measure & Scaling | Dominant Corpus Items Visible |
+    | :--- | :---: | :--- | :--- | :--- |
+    | `figures/q1_6_wordcloud_unigram_before.png` | $n=1$ | **Before Removal** (Unfiltered raw frequencies; `<s>`, `</s>` excluded) | Font size $\propto$ raw token count $c(w)$ (Linear) | `ነው` (1.17M), `ላይ` (755k), `ውስጥ` (346k), `ወደ` (331k), `እና` (319k) |
+    | `figures/q1_6_wordcloud_unigram_after.png` | $n=1$ | **After Removal** (30 curated grammatical stopwords excluded) | Font size $\propto$ raw token count $c(w)$ (Linear) | `ጊዜ` (244k), `ደግሞ` (209k), `አንድ` (193k), `ቤት` (182k), `አቶ` (169k) |
+    | `figures/q1_6_wordcloud_bigram_before.png` | $n=2$ | **Before Removal** (Unfiltered raw frequencies; boundary tags excluded) | Font size $\propto$ raw frequency count $c(w)$ | `ዓ ም` (108k), `ቀን ዓ` (46.5k), `ነገር ግን` (44.7k), `ዶ ር` (35.6k), `ማለት ነው` (32.4k) |
+    | `figures/q1_6_wordcloud_bigram_after.png` | $n=2$ | **After Removal** (N-grams containing any of 30 stopwords excluded) | Font size $\propto$ raw frequency count $c(w)$ | `ዓ ም` (108k), `ቀን ዓ` (46.5k), `ዶ ር` (35.6k), `አዲስ አበባ` (31.4k), `ምክር ቤት` (23.9k) |
+    | `figures/q1_6_wordcloud_trigram_before.png` | $n=3$ | **Before Removal** (Unfiltered raw frequencies; boundary tags excluded) | Font size $\propto$ raw frequency count $c(w)$ | `ቀን ዓ ም` (45.9k), `በ ዓ ም` (28.1k), `እ ኤ አ` (16.7k), `ዓ ም ኢሳት` (9.8k), `ም ኢሳት ዜና` (9.7k) |
+    | `figures/q1_6_wordcloud_trigram_after.png` | $n=3$ | **After Removal** (N-grams containing any of 30 stopwords excluded) | Font size $\propto$ raw frequency count $c(w)$ | `ቀን ዓ ም` (45.9k), `በ ዓ ም` (28.1k), `እ ኤ አ` (16.7k), `ዓ ም ጀምሮ` (6.4k), `ተወካዮች ምክር ቤት` (5.6k) |
+    | `figures/q1_6_wordcloud_4gram_before.png` | $n=4$ | **Before Removal** (Unfiltered raw frequencies; boundary tags excluded) | Font size $\propto$ raw frequency count $c(w)$ | `ቀን ዓ ም ኢሳት` (9.8k), `ዓ ም ኢሳት ዜና` (9.7k), `እ ኤ አ በ` (8.6k), `የካቲት ቀን ዓ ም` (3.0k) |
+    | `figures/q1_6_wordcloud_4gram_after.png` | $n=4$ | **After Removal** (N-grams containing any of 30 stopwords excluded) | Font size $\propto$ raw frequency count $c(w)$ | `ቀን ዓ ም ኢሳት` (9.8k), `ዓ ም ኢሳት ዜና` (9.7k), `እ ኤ አ በ` (8.6k), `ከ ዓ ም ጀምሮ` (2.9k), `አዲስ አበባ ከተማ` (2.6k) |
+
+  * **Matching Top-10 Verification Tables (Before vs. After):**
+    To ensure cross-verification between visual token size and exact numeric counts, the authoritative top 10 items from `results/q1_top10_n*.csv` and `results/q1_stopword_top10_n*.csv` are provided below:
+
+    | Rank | Order 1 (Before) | Count | Order 1 (After) | Count | Order 2 (Before) | Count | Order 2 (After) | Count |
+    | :---: | :--- | :---: | :--- | :---: | :--- | :---: | :--- | :---: |
+    | 1 | `ነው` (copula: is) | 1,165,953 | `ጊዜ` (time/period) | 244,117 | `ዓ ም` (A.D. / Year of Mercy) | 108,455 | `ዓ ም` (A.D. / Year of Mercy) | 108,455 |
+    | 2 | `ላይ` (on/upon) | 754,678 | `ደግሞ` (moreover/again) | 209,377 | `ቀን ዓ` (date of year) | 46,525 | `ቀን ዓ` (date of year) | 46,525 |
+    | 3 | `ውስጥ` (in/inside) | 346,314 | `አንድ` (one / a) | 192,674 | `ነገር ግን` (however/but) | 44,744 | `ዶ ር` (Dr. / Doctor) | 35,624 |
+    | 4 | `ወደ` (to/towards) | 331,106 | `ቤት` (house/institution) | 182,048 | `ዶ ር` (Dr. / Doctor) | 35,624 | `አዲስ አበባ` (Addis Ababa) | 31,388 |
+    | 5 | `እና` (and) | 318,942 | `አቶ` (Mr.) | 169,169 | `ማለት ነው` (that means) | 32,386 | `በ ዓ` (in the year of) | 28,486 |
+    | 6 | `ጋር` (with) | 291,527 | `በ` (in/by/with) | 164,316 | `ብቻ ሳይሆን` (not only) | 32,261 | `በአዲስ አበባ` (in Addis Ababa) | 24,048 |
+    | 7 | `ነበር` (was/were) | 274,994 | `ሰው` (person/man) | 153,034 | `አዲስ አበባ` (Addis Ababa) | 31,388 | `ምክር ቤት` (Council / House) | 23,905 |
+    | 8 | `ግን` (but/however) | 271,502 | `ምን` (what) | 147,347 | `በ ዓ` (in the year of) | 28,486 | `ጠቅላይ ሚኒስትር` (Prime Minister) | 19,934 |
+    | 9 | `ጊዜ` (time/period) | 244,117 | `ናቸው` (are / they are) | 141,179 | `ብቻ ነው` (is only) | 24,682 | `የአዲስ አበባ` (of Addis Ababa) | 19,669 |
+    | 10 | `ነገር` (thing/matter) | 217,661 | `ሰዎች` (people) | 138,007 | `በአዲስ አበባ` (in Addis Ababa) | 24,048 | `ይሁን እንጂ` (nevertheless) | 19,518 |
+
+    | Rank | Order 3 (Before) | Count | Order 3 (After) | Count | Order 4 (Before) | Count | Order 4 (After) | Count |
+    | :---: | :--- | :---: | :--- | :---: | :--- | :---: | :--- | :---: |
+    | 1 | `ቀን ዓ ም` (date A.D.) | 45,927 | `ቀን ዓ ም` (date A.D.) | 45,927 | `ቀን ዓ ም ኢሳት` (Date A.D. ESAT) | 9,786 | `ቀን ዓ ም ኢሳት` (Date A.D. ESAT) | 9,786 |
+    | 2 | `በ ዓ ም` (in year A.D.) | 28,127 | `በ ዓ ም` (in year A.D.) | 28,127 | `ዓ ም ኢሳት ዜና` (A.D. ESAT News) | 9,700 | `ዓ ም ኢሳት ዜና` (A.D. ESAT News) | 9,700 |
+    | 3 | `እ ኤ አ` (G.C. calendar) | 16,731 | `እ ኤ አ` (G.C. calendar) | 16,731 | `እ ኤ አ በ` (G.C. in) | 8,613 | `እ ኤ አ በ` (G.C. in) | 8,613 |
+    | 4 | `ዓ ም ኢሳት` (A.D. ESAT) | 9,789 | `ዓ ም ኢሳት` (A.D. ESAT) | 9,789 | `የካቲት ቀን ዓ ም` (Feb ... A.D.) | 2,952 | `የካቲት ቀን ዓ ም` (Feb ... A.D.) | 2,952 |
+    | 5 | `ም ኢሳት ዜና` (ESAT News) | 9,700 | `ም ኢሳት ዜና` (ESAT News) | 9,700 | `መጋቢት ቀን ዓ ም` (March ... A.D.) | 2,908 | `መጋቢት ቀን ዓ ም` (March ... A.D.) | 2,908 |
+    | 6 | `ኤ አ በ` (G.C. in) | 8,656 | `ኤ አ በ` (G.C. in) | 8,656 | `ከ ዓ ም ጀምሮ` (starting ... A.D.) | 2,866 | `ከ ዓ ም ጀምሮ` (starting ... A.D.) | 2,866 |
+    | 7 | `ዓ ም ጀምሮ` (starting ... A.D.) | 6,395 | `ዓ ም ጀምሮ` (starting ... A.D.) | 6,395 | `ግንቦት ቀን ዓ ም` (May ... A.D.) | 2,824 | `ግንቦት ቀን ዓ ም` (May ... A.D.) | 2,824 |
+    | 8 | `ከ ዓ ም` (from ... A.D.) | 6,386 | `ከ ዓ ም` (from ... A.D.) | 6,386 | `ከ ሚሊዮን ብር በላይ` (over ... M Birr) | 2,822 | `የአዲስ አበባ ከተማ አስተዳደር` | 2,607 |
+    | 9 | `ተወካዮች ምክር ቤት` | 5,598 | `ተወካዮች ምክር ቤት` | 5,598 | `የአዲስ አበባ ከተማ አስተዳደር` | 2,607 | `ሰኔ ቀን ዓ ም` (June ... A.D.) | 2,569 |
+    | 10 | `በሌላ በኩል ደግሞ` | 5,221 | `የአዲስ አበባ ከተማ` | 4,903 | `ሰኔ ቀን ዓ ም` (June ... A.D.) | 2,569 | `ጥር ቀን ዓ ም` (Jan ... A.D.) | 2,518 |
+
+  * **Resolution of Phrase Provenance & Caption Audit:**
+    - **`ከ ዓ ም ጀምሮ`:** Verified as **Rank 6 in the global 4-gram corpus** (Count: **2,866**), and its trigram parent `ዓ ም ጀምሮ` is **Rank 7** (Count: **6,395**). It is an authentic, highly frequent temporal formula, not an artificial rendering artifact.
+    - **`የጽንስና ማህጸን ሐኪሞች ማህበር`:** Verified as an authentic phrase in `GPAC.txt` from maternal healthcare news articles (individual word counts in `vocab.tsv`: `የጽንስና`: 1,233, `ማህጸን`: 1,764, `ሐኪሞች`: 2,033, `ማህበር`: 11,983). However, its compound 4-gram frequency is well below 1,000, placing it outside the top 50 global 4-grams. It was an illustrative health-reporting sample string and is strictly excluded from top-rank frequency visuals and captions.
+    - **`ዓ ም` Count Verification:** Displays consistently at count **108,455** (Rank 1 bigram) across both the word cloud visual and the Q1.5 summary tables.
+
+  * **Corpus Genre & Linguistic Interpretation:**
+    - **News Broadcast & Dateline Genre:** The overwhelming prevalence of calendar abbreviations (`ዓ ም` [108,455], `እ ኤ አ` [16,731]), date connectors (`ቀን ዓ ም` [45,927]), month formulas (`የካቲት/መጋቢት/ሰኔ ቀን ዓ ም`), and broadcast tags (`ዓ ም ኢሳት` [9,789], `ም ኢሳት ዜና` [9,700]) reflects the journalistic origin of the GPAC corpus, which heavily aggregates daily news wires and transcribed broadcasts (e.g. Ethiopian News Agency, Walta, ESAT).
+    - **Institutional Governance Collocations:** Open-class filtered clouds prominently feature official governance terms (`ጠቅላይ ሚኒስትር` [19,934], `ተወካዮች ምክር ቤት` [5,598], `የአዲስ አበባ ከተማ አስተዳደር` [2,607]), highlighting the administrative and political coverage of the underlying text.
+
+  * **Methodological Caveat:**
+    Word clouds are exploratory, descriptive visualizations of token frequency distributions. They effectively illustrate lexical dominance and verify stopword filtering, but do **not** reflect conditional transition probabilities, model calibration, or perplexity (which are quantitatively assessed in Questions 2 and 3).
 
 * **Q1.7 Target Sentence Probability & Distribution Sums (Kneser-Ney Smoothing):**
 
