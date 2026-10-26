@@ -212,13 +212,24 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     * *Summary:* Across all 30 evaluated transitions for $n \in \{2, 3, 4\}$, the extraction pipeline demonstrates **100.0% Precision**, **100.0% Recall**, and **F1-Score = 1.0000**, confirming exact boundary padding and transition correctness at scale.
 * **Q1.3 Probabilities & Top 10 Tables (Joint Sequence MLE):**
 
-  * Maximum Likelihood Estimation sequence probability is defined by $P(w_1, \dots, w_n) = \frac{\text{count}(w_1, \dots, w_n)}{N_{\text{total}}}$, where $N_{\text{total}} = 81,161,104$.
-  * Because $N_{\text{total}}$ is constant, the n-grams with highest frequency are identically the n-grams with highest sequence probability.
-  * **Top 10 Most Likely 4-grams (Order $n = 4$, from `results/q1_top10_n4.csv`):**
-    Filtering boundary markers (`<s>`, `</s>`, `<UNK>`) presents purely authentic lexical Amharic 4-grams:
+  * **Maximum Likelihood Estimation & Denominator Definition:**
+    Sequence joint probability is computed via Maximum Likelihood Estimation:
+    $$P(w_1, \dots, w_n) = \frac{C(w_1, \dots, w_n)}{N_{\text{total}}}$$
+    *Denominator Specification:* Under standard order-$n$ boundary padding ($n-1$ start tokens `<s>` and $1$ terminal token `</s>`), every sentence $s$ of length $L_s$ word tokens generates exactly $L_s + 1$ prediction steps across all orders $n \in \{1, 2, 3, 4\}$. Summed across all 4,993,570 valid sentences in GPAC, the total number of evaluation opportunities is identically:
+    $$N_{\text{total}} = \sum_{s=1}^S (L_s + 1) = N_{\text{tokens}} + N_{\text{sentences}} = 76,167,534 + 4,993,570 = \mathbf{81,161,104}$$
+    Because every prediction position evaluates exactly one n-gram of length $n$, the denominator is constant across all orders ($N = 81,161,104$).
+    *Sum Checks:* For every order $n \in \{1, 2, 3, 4\}$, the sum of counts $\sum C = 81,161,104$ and $\sum P = 1.0000000000$ (with discrepancy $\le 1 \times 10^{-12}$).
 
-    |     Rank     | 4-gram Sequence (Pure Lexical Words)    | Corpus Count | Joint Probability ($P$) | Linguistic Role & Discourse Function                                |
-    | :----------: | :-------------------------------------- | :----------: | :-----------------------: | :------------------------------------------------------------------ |
+  * **Boundary Filtering vs. Raw N-grams:**
+    * In raw unfiltered 4-gram counts (`order4_counts.npy`), the most frequent entries are dominated by sentence-boundary markers, such as `('<s>', '<s>', '<s>', 'ይህ')` (98,017 occurrences), `('<s>', '<s>', '<s>', 'በዚህ')` (60,098 occurrences), `('<s>', '<s>', '<s>', 'ስለዚህ')` (36,250 occurrences), and `('<s>', '<s>', '<s>', 'ኢትዮጵያ')` (29,081 occurrences).
+    * The table below is **not the raw top 10**; it presents the top 10 **after boundary filtering**.
+    * The filter rule (`~np.isin(ngrams[4], [PAD_ID, EOS_ID]).any(axis=1)`) removes any 4-gram where **any** token is a boundary marker (`<s>` or `</s>`), isolating genuine intra-sentence Amharic phrases.
+    * *Distinction from Q1.5:* Boundary tags are excluded here, but no stopword filtering is applied in Q1.3. The table represents boundary-free sequences containing both content and function words; stopword removal is analyzed separately in Q1.5.
+
+  * **Top 10 Most Likely 4-grams (Boundary-Free, from `results/q1_top10_n4.csv`):**
+
+    |     Rank     | 4-gram Sequence (Boundary-Free)         | Corpus Count | Joint Probability ($P$) | Linguistic Role & Discourse Function                                |
+    | :----------: | :-------------------------------------- | :----------: | :---------------------: | :------------------------------------------------------------------ |
     | **1** | `ቀን ዓ ም ኢሳት`                   |    9,786    | $1.2057 \times 10^{-4}$ | Broadcast news date formula (*"[Day] E.C., ESAT..."*)             |
     | **2** | `ዓ ም ኢሳት ዜና`                   |    9,700    | $1.1952 \times 10^{-4}$ | Media attribution headline (*"[Year] E.C., ESAT News..."*)        |
     | **3** | `እ ኤ አ በ`                         |    8,613    | $1.0612 \times 10^{-4}$ | Gregorian calendar date prefix (*"In ... G.C."*)                  |
@@ -227,110 +238,181 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     | **6** | `ከ ዓ ም ጀምሮ`                     |    2,866    | $3.5312 \times 10^{-5}$ | Temporal origin construction (*"Starting from [Year] E.C."*)      |
     | **7** | `ግንቦት ቀን ዓ ም`                 |    2,824    | $3.4795 \times 10^{-5}$ | Formal month-date formula (*"Ginbot [Day], E.C."*)                |
     | **8** | `ከ ሚሊዮን ብር በላይ`             |    2,822    | $3.4770 \times 10^{-5}$ | Financial quantification formula (*"More than ... million Birr"*) |
-    | **9** | `የአዲስ አበባ ከተማ አስተዳደር` |    2,607    | $3.2121 \times 10^{-5}$ | Municipal state entity (*"Addis Ababa City Administration"*)      |
+    | **9** | `የአዲስ አበባ ከተማ አስተዳደር` |    2,607    | $3.2121 \times 10^{-5}$ | Municipal administrative entity (*"Addis Ababa City Administration"*) |
     | **10** | `ሰኔ ቀን ዓ ም`                     |    2,569    | $3.1653 \times 10^{-5}$ | Formal month-date formula (*"Sene [Day], E.C."*)                  |
 
-    *(Note: All sequences above are authentic 4-word Amharic phrases with boundary padding markers cleanly excluded).*
+    *Confirmation of Ordering:* All 10 rows descend strictly monotonically: $9,786 > 9,700 > 8,613 > 2,952 > 2,908 > 2,866 > 2,824 > 2,822 > 2,607 > 2,569$, matching `results/q1_top10_n4.csv` exactly.
+
+  * **Tokenization of `ዓ ም` & Date Inflation:**
+    In standard Amharic orthography, the Ethiopian calendar abbreviation for *Amete Mihret* is written with abbreviation periods as `ዓ.ም.`. Because punctuation normalization removes periods, the tokenizer splits this into two independent tokens (`ዓ` and `ም`). This artificial token split inflates the length of date expressions by one token order (e.g., `የካቲት ቀን ዓ ም` spans 4 tokens instead of 3 words), causing date formulas to dominate higher-order n-gram frequencies.
+
+  * **Discourse Function & Source Mix Bias:**
+    Ranks 1 and 2 (`ቀን ዓ ም ኢሳት`, `ዓ ም ኢሳት ዜና`) explicitly feature the broadcaster ESAT (Ethiopian Satellite Television). The dominance of these phrases reflects the news agency provenance of the GPAC dataset (transcripts from ESAT, FBC, ENA, and WIC) rather than general spoken or literary Amharic.
+
+  * **Coverage & Zipfian Sparsity Context:**
+    Across the entire corpus, there are **52,176,782 distinct 4-gram types** spanning 81,161,104 prediction positions. The cumulative frequency of the top 10 boundary-free 4-grams is **50,647 occurrences**. Despite being the most frequent 4-grams in the entire 76-million token corpus, these 10 sequences account for merely **0.0624%** of all 4-gram tokens. This demonstrates the extreme heavy-tailed Zipfian sparsity characteristic of higher-order n-grams.
+
 * **Q1.4 Conditional Bigram Probabilities:**
 
-  * Implemented modular function `get_conditional_bigram_prob(w1, w2)` computing $P(w_2 \mid w_1) = \frac{\text{count}(w_1, w_2)}{\text{count}(w_1)}$.
-  * Measured values:
-    * $P(\text{ውስጥ} \mid \text{ኢትዮጵያ}) = 0.094758$ (9.48% conditional probability).
-    * $P(\text{አበባ} \mid \text{አዲስ}) = 0.531818$ (53.18% conditional probability).
-    * $P(\text{እና} \mid \text{መንግስት}) = 0.041280$ (4.13%).
-    * Unseen pair `('ሰማይ', 'ድንጋይ')` receives $P = 0.0$.
+  * **Definition & Implementation:**
+    The modular function `get_conditional_bigram_prob(w1, w2)` computes the empirical bigram continuation probability:
+    $$P(w_2 \mid w_1) = \frac{C(w_1, w_2)}{C(w_1)}$$
+
+  * **Full-Corpus Counts & Measured Probabilities (from `results/q1_bigram_conditional.csv`):**
+
+    | Bigram Pair $(w_1, w_2)$ | Left Context Count $C(w_1)$ | Bigram Count $C(w_1, w_2)$ | Conditional Prob $P(w_2 \mid w_1)$ | Percentage | Linguistic Interpretation |
+    | :--- | :---: | :---: | :---: | :---: | :--- |
+    | `('ኢትዮጵያ', 'ውስጥ')` | 102,573 | 8,181 | **0.079758** | 7.9758% | Postpositional locative phrase (*"inside Ethiopia"*) |
+    | `('አዲስ', 'አበባ')` | 88,897 | 31,388 | **0.353083** | 35.3083% | Dominant capital city named entity (*"Addis Ababa"*) |
+    | `('መንግስት', 'እና')` | 78,628 | 474 | **0.006028** | 0.6028% | Noun followed by coordinating conjunction (*"government and"*) |
+    | `('ሰማይ', 'ድንጋይ')` | 6,159 | 0 | **0.000000** | 0.0000% | Attested vocabulary with zero co-occurrence (*"sky stone"*) |
+
+  * **Boundary Handling for the Denominator:**
+    The denominator $C(w_1)$ is obtained from `order1_counts.npy`, which counts all occurrences of $w_1$ across the corpus. When $w_1$ appears as the sentence-final word, its next token is the structural marker `</s>`. In `order2_ngrams.npy`, the transition $(w_1, \text{</s>})$ is explicitly recorded as a bigram. Therefore, occurrences of $w_1$ before `</s>` are fully included in $C(w_1)$. Summing $C(w_1, w_2)$ over all valid continuations $w_2 \in V \cup \{</s>\}$ recovers $C(w_1)$ exactly.
+
+  * **Sum-to-One Normalization Verification:**
+    For any context $w_1$, summing conditional probabilities across all possible continuations (including `</s>`) yields:
+    $$\sum_{w_2 \in V \cup \{</s>\}} P(w_2 \mid w_1) = \frac{\sum_{w_2} C(w_1, w_2)}{C(w_1)} = \frac{C(w_1)}{C(w_1)} = \mathbf{1.0000000000}$$
+    Tested on context $w_1 = \text{'አዲስ'}$ ($C = 88,897$): $\sum P = 1.0000000000$ (numerical error $< 10^{-12}$).
+
+  * **Continuation Distribution for Context `አዲስ`:**
+    Context `አዲስ` ($C = 88,897$) shows strong probability concentration:
+    - `አበባ`: Count $31,388$, conditional probability **$0.353083$** (35.31% of all occurrences of `አዲስ`).
+    - The remaining ~64.69% of probability mass is dispersed across diverse nominal and modifier continuations (e.g., `ነገር`, `ምዕራፍ`, `ስርዓት`, `አስተሳሰብ`, `ሕገ`, and sentence terminator `</s>`).
+
+  * **Linguistic Analysis of Unseen Pair `(ሰማይ, ድንጋይ)` & Edge Cases:**
+    - Unigram counts in GPAC: $C(\text{ሰማይ}) = 6,159$, $C(\text{ድንጋይ}) = 7,110$.
+    - Both words are common vocabulary items. The zero count ($C = 0$) and zero probability ($P = 0.000000$) stem from semantic incompatibility and lack of natural co-occurrence in Amharic discourse, rather than an out-of-vocabulary absence.
+    - *Unseen Context Behavior ($C(w_1) = 0$):* If an unseen word is supplied as context $w_1$, division by zero is prevented by the function returning $0.000000$ (or backing off to unigram probability $P(w_2)$ when smoothing is active).
+
+  * **Pair Selection Rationale:**
+    These four pairs were chosen to benchmark four distinct linguistic scenarios:
+    1. A dominant geographic collocation (`አዲስ አበባ`, 35.31%).
+    2. A frequent postpositional locative relation (`ኢትዮጵያ ውስጥ`, 7.98%).
+    3. A noun followed by a weak coordinating conjunction (`መንግስት እና`, 0.60%).
+    4. An attested but collocationally absent semantic pairing (`ሰማይ ድንጋይ`, 0.00%).
+
 * **Q1.5 Stopwords & Filtering Analysis:**
 
-  * **Linguistic Justification for 30 Core Stopwords (5 Categories):**
-    The stopword list contains 30 closed-class function words organized into five syntactic categories:
+  * **The 30-Word Closed-Class Stopword List (`AMHARIC_STOPWORDS`):**
+    From `scripts/10_q1_results.py`, the stopword filter is defined by exactly 30 closed-class function words:
+    `ነው, ላይ, ውስጥ, እና, ጋር, ወደ, እንደ, ስለ, ይህ, ነበር, አለ, እስከ, ከዚህ, ሆኖ, በኋላ, መካከል, በኩል, ብቻ, አይደለም, ይህን, ወይም, ሆኖም, ነገር, ግን, እንዲሁም, በላይ, ሌላ, ሁሉ, በታች, በፊት`.
 
-    * *Prepositions (7):* `በ` (in/by/at), `ከ` (from/out of), `ወደ` (to/toward), `ስለ` (about/concerning), `እንደ` (like/as), `ላይ` (on/upon), `ውስጥ` (inside/within).
-    * *Conjunctions & Connectives (5):* `እና` (and), `ግን` (but/yet), `ነገር ግን` (however/nevertheless), `ወይም` (or), `ሆኖም` (nonetheless/although). *(Note: bare `ነገር` is a content noun meaning "thing/matter"; only the compound connective unit `ነገር ግን` functions as an adversative conjunction).*
-    * *Copulas & Auxiliary Verbs (6):* `ነው` (is [present 3m copula]), `ነበር` (was [past auxiliary]), `ናት` (is [present 3f copula]), `ናቸው` (are [present 3p copula]), `አለ` (there is [existential copula]), `ይሆናል` (will be [future auxiliary]).
-    * *Pronouns & Demonstratives (9):*
-      - Personal pronouns (5): `እኔ` (I), `እኛ` (we), `እሱ` (he), `እሷ` (she), `እነሱ` (they).
-      - Demonstrative pronouns (2): `ይህ` (this), `እነዚህ` (these).
-      - Interrogative pronouns (2): `ምን` (what), `ማን` (who).
-    * *Adverbs & Focus Particles (3):* `ብቻ` (only [restrictive focus particle]), `እንዲሁም` (as well as / likewise), `በጣም` (very [degree adverb]).
-  * **Clitic Attachment & Exclusion Rationale:**
-    Matching is applied to whole tokens and to the bare forms of prepositional clitics. Amharic regularly attaches prepositional proclitics (`በ-`, `ከ-`, `ለ-`, `ስለ-`) directly to nominal and pronominal stems, creating fused compound orthographic words (e.g. `በዚህ` = `በ` + `ዚህ` *"in this"*, `ከዚህ` = `ከ` + `ዚህ` *"from this"*, `ስለዚህ` = `ስለ` + `ዚህ` *"therefore"*). Sentence-boundary tags (`<s>`, `</s>`) are strictly excluded from both the before and after rankings. The list deliberately excludes `ደግሞ` and `አንድ`: `ደግሞ` carries substantive adverbial aspect (*"again / on the other hand"*) with contrastive discourse function, while `አንድ` functions primarily as a cardinal numeral (*"one"*) rather than a grammatical determiner (as Amharic lacks an indefinite article).
-  * **Before vs. After Stopword Removal (Top-5 Pure Lexical N-grams across $n=1..4$, from `results/`):**
+  * **Clitic Attachment & Standalone `በ` / `ከ` Handling:**
+    - In Amharic morphology, prepositions such as `በ` (in/by) and `ከ` (from) are primarily **bound proclitics** attached directly to nouns (`በቤት`, `ከዚህ`). Per Guideline B7, word forms with attached clitics were retained without stemming.
+    - Standalone `በ` and `ከ` were not included in the 30-word stopword list because isolated occurrences in news corpora represent punctuation-stripped fragments of abbreviations (e.g., `በ ዓ ም` for `በዓ.ም.`, `እ ኤ አ በ` for `እ.ኤ.አ. በ...`).
+    - Consequently, `በ ዓ`, `በ ዓ ም`, and `እ ኤ አ በ` contain no tokens from `AMHARIC_STOPWORDS` and survive the filter.
 
-    |       Order       | Top-5 Before Removal (`results/q1_top10_n*.csv`)                                                                                                             | Top-5 After Removal (`results/q1_stopword_top10_n*.csv`)                                                                                                     | Filter Impact & Observations                                                                                                              |
-    | :---------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
-    | **$n=1$** | 1. `ነው` (1,165,953)2. `ላይ` (754,678)3. `ውስጥ` (346,314)4. `ወደ` (331,106)5. `እና` (318,942)                                                  | 1. `ጊዜ` (244,117)2. `ደግሞ` (209,377)3. `አንድ` (192,674)4. `ቤት` (182,048)5. `አቶ` (169,169)                                                  | All top-5 function words (`ነው`, `ላይ`, `ውስጥ`, `ወደ`, `እና`) successfully eliminated; open-class nouns and titles rise.  |
-    | **$n=2$** | 1. `ዓ ም` (108,455)2. `ቀን ዓ` (46,525)3. `ነገር ግን` (44,744)4. `ዶ ር` (35,624)5. `ማለት ነው` (32,386)                                       | 1. `ዓ ም` (108,455)2. `ቀን ዓ` (46,525)3. `ዶ ር` (35,624)4. `አዲስ አበባ` (31,388)5. `በ ዓ` (28,486)                                           | Function bigrams `ነገር ግን` (connective) and `ማለት ነው` (copular phrase) removed; entity bigram `አዲስ አበባ` enters top 5. |
-    | **$n=3$** | 1. `ቀን ዓ ም` (45,927)2. `በ ዓ ም` (28,127)3. `እ ኤ አ` (16,731)4. `ዓ ም ኢሳት` (9,789)5. `ም ኢሳት ዜና` (9,700)                             | 1. `ቀን ዓ ም` (45,927)2. `በ ዓ ም` (28,127)3. `እ ኤ አ` (16,731)4. `ዓ ም ኢሳት` (9,789)5. `ም ኢሳት ዜና` (9,700)                             | Top trigrams are stable calendar and broadcast collocations containing no bare stopwords.                                                 |
-    | **$n=4$** | 1. `ቀን ዓ ም ኢሳት` (9,786)2. `ዓ ም ኢሳት ዜና` (9,700)3. `እ ኤ አ በ` (8,613)4. `የካቲት ቀን ዓ ም` (2,952)5. `መጋቢት ቀን ዓ ም` (2,908) | 1. `ቀን ዓ ም ኢሳት` (9,786)2. `ዓ ም ኢሳት ዜና` (9,700)3. `እ ኤ አ በ` (8,613)4. `የካቲት ቀን ዓ ም` (2,952)5. `መጋቢት ቀን ዓ ም` (2,908) | Top 4-grams comprise calendar news formulas; zero boundary tags or standalone stopwords survive.                                          |
+  * **Stopword Filtering Rule:**
+    An n-gram is removed if **any** of its constituent tokens appears in `AMHARIC_STOPWORDS`, or is a structural boundary tag (`<s>`, `</s>`). Boundary tags are excluded from all before and after rankings.
+
+  * **Before vs. After Stopword Removal (Top-5 across $n=1..4$, from `results/`):**
+
+    | Order | Top-5 Before Removal (`results/q1_top10_n*.csv`) | Top-5 After Removal (`results/q1_stopword_top10_n*.csv`) | Filter Impact & Observations |
+    | :---: | :--- | :--- | :--- |
+    | **$n=1$** | 1. `ነው` (1,165,953)<br>2. `ላይ` (754,678)<br>3. `ውስጥ` (346,314)<br>4. `ወደ` (331,106)<br>5. `እና` (318,942) | 1. `ጊዜ` (244,117)<br>2. `ደግሞ` (209,377)<br>3. `አንድ` (192,674)<br>4. `ቤት` (182,048)<br>5. `አቶ` (169,169) | All top-5 function words (`ነው`, `ላይ`, `ውስጥ`, `ወደ`, `እና`) successfully eliminated; open-class nouns and titles rise. |
+    | **$n=2$** | 1. `ዓ ም` (108,455)<br>2. `ቀን ዓ` (46,525)<br>3. `ነገር ግን` (44,744)<br>4. `ዶ ር` (35,624)<br>5. `ማለት ነው` (32,386) | 1. `ዓ ም` (108,455)<br>2. `ቀን ዓ` (46,525)<br>3. `ዶ ር` (35,624)<br>4. `አዲስ አበባ` (31,388)<br>5. `በ ዓ` (28,486) | Function bigrams `ነገር ግን` (connective) and `ማለት ነው` (copular phrase) removed; entity bigram `አዲስ አበባ` enters top 5. |
+    | **$n=3$** | 1. `ቀን ዓ ም` (45,927)<br>2. `በ ዓ ም` (28,127)<br>3. `እ ኤ አ` (16,731)<br>4. `ዓ ም ኢሳት` (9,789)<br>5. `ም ኢሳት ዜና` (9,700) | 1. `ቀን ዓ ም` (45,927)<br>2. `በ ዓ ም` (28,127)<br>3. `እ ኤ አ` (16,731)<br>4. `ዓ ም ኢሳት` (9,789)<br>5. `ም ኢሳት ዜና` (9,700) | None of the top 5 trigrams contain words from the 30-word stopword list; therefore, the after-removal top 5 is identical to before removal. |
+    | **$n=4$** | 1. `ቀን ዓ ም ኢሳት` (9,786)<br>2. `ዓ ም ኢሳት ዜና` (9,700)<br>3. `እ ኤ አ በ` (8,613)<br>4. `የካቲት ቀን ዓ ም` (2,952)<br>5. `መጋቢት ቀን ዓ ም` (2,908) | 1. `ቀን ዓ ም ኢሳት` (9,786)<br>2. `ዓ ም ኢሳት ዜና` (9,700)<br>3. `እ ኤ አ በ` (8,613)<br>4. `የካቲት ቀን ዓ ም` (2,952)<br>5. `መጋቢት ቀን ዓ ም` (2,908) | Top 5 contain no stopwords and remain identical. However, rank 8 before removal (`ከ ሚሊዮን ብር በላይ`, 2,822) is removed because `በላይ` is a stopword, allowing `የአዲስ አበባ ከተማ አስተዳደር` (2,607) to advance into rank 8. |
+
+  * **Deliberate Retention of `ደግሞ` and `አንድ`:**
+    - `ደግሞ` (*"again / moreover / on the other hand"*): Expresses contrastive or additive discourse aspect rather than empty grammatical glue.
+    - `አንድ` (*"one"*): Functions primarily as a cardinal numeral. Amharic has no indefinite article; `አንድ` acts as a meaningful quantifier.
+
 * **Q1.6 Word Clouds:**
 
   * 8 PNG images generated in `figures/` (`q1_6_wordcloud_*.png`) using `NotoSansEthiopic-Regular.ttf` with zero missing glyphs or boxes.
+
 * **Q1.7 Target Sentence Probability & Distribution Sums (Kneser-Ney Smoothing):**
 
-  * Evaluated across four test sentences (in-corpus, out-of-corpus, and ungrammatical nonsense) using interpolated Kneser-Ney smoothing (from `results/q1_sentence_probs.csv`):
-    | Test Sentence                                                      |       Category       | $n$ |                 Total $\log P$                 |                   Per-Token $\log P$                   | Verbatim in Corpus? |
-    | :----------------------------------------------------------------- | :------------------: | :---: | :----------------------------------------------: | :------------------------------------------------------: | :-----------------: |
-    | `ኢትዮጵያ በአፍሪካ ቀንድ ትገኛለች።`                      | Out-of-Corpus Fluent | 1234 | $-43.2479$$-28.4221$$-28.3168$$-25.4912$ |  $-8.6496$$-5.6844$$-5.6634$$\mathbf{-5.0982}$  |   No (`False`)   |
-    | `የኢትዮጵያ መንግስት ለህዝቡ ሰላም እና ልማት ይሰራል።` | Out-of-Corpus Fluent | 1234 | $-63.2111$$-48.1076$$-41.7383$$-42.7557$ |  $-7.9014$$-6.0135$$\mathbf{-5.2173}$$-5.3445$  |   No (`False`)   |
-    | `አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት።`                  |   In-Corpus Fluent   | 1234 | $-53.2230$$-32.3624$$-26.8990$$-16.2373$ |  $-7.6033$$-4.6232$$-3.8427$$\mathbf{-2.3196}$  |   Yes (`True`)   |
-    | `ድንጋይ ሰማይ ሮጠ በላ ትላንት ወንበር።`                  |  Invented Nonsense  | 1234 | $-67.2935$$-71.6153$$-71.7656$$-73.2686$ | $-9.6134$$-10.2308$$-10.2522$$\mathbf{-10.4669}$ |   No (`False`)   |
-  * **Linguistic Discrimination:** High-order models strongly reward grammatical and collocationally frequent structures (in-corpus verbatim sentence reaches $-2.3196$ per token, fluent out-of-corpus sentences score $-5.0982$ to $-5.3445$) while severely penalizing ungrammatical word salad (penalized to $-10.4669$ per token).
-  * **Sum Check:** Conditional distribution sums $\sum_{w \in V} P_{\text{KN}}(w \mid h) = 1.0000000000$ with absolute numerical discrepancy $\le 1 \times 10^{-9}$ across all tested context histories, confirming strict mathematical calibration.
+  * **Evaluation across Test Sentences (from `results/q1_sentence_probs.csv`):**
+
+    | Test Sentence | Category / Linguistic Rationale | Length ($L$) | $n=1$ Per-Token $\log P$ | $n=2$ Per-Token $\log P$ | $n=3$ Per-Token $\log P$ | $n=4$ Per-Token $\log P$ | In-Corpus Verbatim? |
+    | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+    | `ኢትዮጵያ በአፍሪካ ቀንድ ትገኛለች።` | Unseen Grammatical (Geographic statement) | 5 | $-8.6496$ | $-5.6844$ | $-5.6634$ | $\mathbf{-5.0982}$ | No (`False`) |
+    | `የኢትዮጵያ መንግስት ለህዝቡ ሰላም እና ልማት ይሰራል።` | Unseen Grammatical (Institutional news report) | 8 | $-7.9014$ | $-6.0135$ | $-5.2173$ | $\mathbf{-5.3445}$ | No (`False`) |
+    | `አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት።` | In-Corpus Verbatim (Exact sentence seen in GPAC) | 7 | $-7.6033$ | $-4.6232$ | $-3.8427$ | $\mathbf{-2.3196}$ | Yes (`True`) |
+    | `ድንጋይ ሰማይ ሮጠ በላ ትላንት ወንበር።` | Invented Nonsense (Ungrammatical word salad) | 7 | $-9.6134$ | $-10.2308$ | $-10.2522$ | $\mathbf{-10.4669}$ | No (`False`) |
+
+  * **Explanation of Metrics:**
+    - **Sentence Length ($L$):** Evaluated prediction steps $L = \text{word count} + 1$ (including terminal `</s>`).
+    - **Bold Values:** Represent the highest-order model ($n = 4$) per-token score.
+    - **Total $\log P$:** Evaluated as $\sum_{i=1}^L \log P_{\text{KN}}(w_i \mid w_{i-n+1}^{i-1})$.
+    - **Per-Token $\log P$:** Total $\log P$ normalized by sentence length $L$.
+
+  * **Sum Check & Probability Normalization:**
+    - For each context history $h$, the conditional probability distribution $P_{\text{KN}}(w \mid h)$ is evaluated over all $|V| = 1,893,214$ vocabulary items (including `</s>`).
+    - Across tested histories (e.g., $h = \text{['<s>']}$, $h = \text{['አዲስ']}$, $h = \text{['የኢትዮጵያ', 'መንግስት']}$), $\sum_{w \in V} P_{\text{KN}}(w \mid h) = 1.0000000000$ with absolute numerical discrepancy $\le 1 \times 10^{-9}$, confirming that the conditional probability distributions are properly normalized.
+
+  * **Linguistic Discrimination vs. Training Memorization:**
+    - *Sentence 3 (`አዲስ አበባ የኢትዮጵያ ዋና ከተማ ናት።`):* Reaches an exceptional score of $\mathbf{-2.3196}$ per token at $n = 4$. This sentence occurs verbatim in the GPAC corpus, so its high likelihood reflects training data memorization of a recurring factual proposition.
+    - *Generalization Contrast:* The valid test of model linguistic sensitivity is the comparison between unseen grammatical sentences (Sentences 1 and 2, scoring $-5.0982$ to $-5.3445$ at $n=4$) and the unseen nonsense sentence (Sentence 4, penalized to $-10.4669$ at $n=4$). As $n$ increases from 1 to 4, the score of the nonsense sentence drops from $-9.6134$ down to $-10.4669$ due to severe backoff penalties for non-attested transitions, whereas unseen grammatical sentences gain substantially as higher-order local syntax is rewarded.
+    - *Sentence 1 Stylistic Note:* While `ቀንድ ትገኛለች` is grammatical, standard stylistic phrasing frequently includes `ውስጥ` (`በአፍሪካ ቀንድ ውስጥ ትገኛለች`). The absence of `ውስጥ` lowers its 3-gram and 4-gram collocation counts, explaining why Sentence 1 improves modestly between $n=2$ and $n=4$.
+
 * **Q1.8 Text Generation & Verbatim Duplication Analysis:**
 
-  * Generated 12 sentences (3 per order $n=1..4$, max length 25 tokens) with fixed seed from `results/q1_generation.json`:
+  * **Generated Sentences (12 Samples across $n = 1..4$, from `results/q1_generation.json`):**
 
-    |       Order       | Generated Sentence                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Length |            $\log P$            |     Verbatim Copy?     |
-    | :---------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :----: | :-------------------------------: | :--------------------: |
-    | **$n=1$** | 1. `ያስተዋልነው ቱርክ ልፃፍ ማብራሪያም ገንዘብ ዘገየችን ከአብዮት ጠሃ ፍቅር ጎጆ ጭራሽ የምናድርባት እንደሚያወጣ ግንባርቀደም ቀጥለዋል ማሰብ እንደምችል የ ወናፍ ፀሐይን ተተብትበው በተባለ ስለሚሰግዱላቸው ከሚያጋልጡት የአምባው።`2. `ፈተና የሚያስችላቸውን እንዲሁም ከላይ ተሰናብተው የተደለደሉት ኅየንተ ስብሰባዎች ከመቼውም ተቀምጠዋል ንጉሥ ሦስት አንገታቸውን የአካባቢው ተላቃ የኮሚሽኑ በሮመዳን የስታዲየም በመልካም የመሣሪያዎች ሃንድ ተጠናቆ የያህዌ እንደሚቻልና አልፎ።`3. `ጥፋት ወደ አልሆነልንም ለማዋረድ ለፍቅርና ንዶ ዶክተሩ በሃላፊነት ገቢ ዙሪያ ያሳዩበት ወገኔ በልጅ እንደተሰማሩ ከኢራን ሊረዳው በመንገዱ ትልልቅ እንደ ለማንሳት እንዲሆኑ ከራሳቸው በመድማት ፈጣሪ መንግሥት።` | 252525 | $-309.45$$-276.58$$-270.53$ | **0 / 3 (0.0%)** |
-    | **$n=2$** | 1. `አበረታች ውጤት ማስቀጠል የግድ ይለናል እንጂ ለአንድ የተወሰነ አንድ ላይ እንዴት እንደሚታይ አስረድተዋል።`2. `የአባቶቻችን አምላክ በጎች ሕይወት ቀላል ማድረግ ብቸኛው ኢትዮጵያዊ ሁሉ ስለ ሚገኙ ኣብያተ ክርስቲያናት አካባቢ የእስረኞቹ መፈታት ያለባቸው ሆነው ሳለ አንድ ፈራጅ መሆኑ ዛሬ ሥልጣን ለማስጠበቅ።`3. `በእጅጉ ቀንሶታል የሚሉት ከብዙ ን ጠቅሰው በቀጣይ በሚደረገው ምርጫ ቦርድ ውስጥ የሚሠሩ ተቋማት ብዙ ሰው ምስጢር ነበር የሚሉም ነበሩ።`                                                                                                                                                                                                                                                                                     | 132519 | $-77.11$$-149.80$$-108.36$ | **0 / 3 (0.0%)** |
-    | **$n=3$** | 1. `ቢሏቸው ምን እንዳሉ ታውቃላችሁ።`2. `የዓለም ዋንጫ ጉብኝት በዘጠኝ ወራት ውስጥ ችግር እንዳለ ጠቁመዋል።`3. `ናቸው የዚያ ሰፈር ልጆች ትምህርት ቤት ዲዛይን አልቋል።`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |  498  |  $-19.62$$-32.56$$-32.95$  | **0 / 3 (0.0%)** |
-    | **$n=4$** | 1. `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር ከ በላይ ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል።`2. `ሠራተኛ የነበረ ቢሆንም የነፍሱ ጥሪ ግን ሥራ ፈጠራ ነበር።`3. `የተሸጠው መሬት እጅግ አነስተኛ መሆኑን ገልፀዋል።`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |  1296  |  $-29.04$$-19.43$$-18.11$  | **0 / 3 (0.0%)** |
-  * **Verbatim Replication Fraction:** Evaluated against all 4,993,570 lines of `GPAC_cleaned.txt`:
+    | Order $n$ | Sample | Generated Sentence | Length ($L$) | Total $\log P$ | Per-Token $\log P$ | In-Corpus Verbatim? |
+    | :---: | :---: | :--- | :---: | :---: | :---: | :---: |
+    | **$n = 1$** | 1 | `ያስተዋልነው ቱርክ ልፃፍ ማብራሪያም ገንዘብ ዘገየችን ከአብዮት ጠሃ ፍቅር ጎጆ ጭራሽ የምናድርባት እንደሚያወጣ ግንባርቀደም ቀጥለዋል ማሰብ እንደምችል የ ወናፍ ፀሐይን ተተብትበው በተባለ ስለሚሰግዱላቸው ከሚያጋልጡት የአምባው።` | 25 | $-309.45$ | $-12.38$ | No (`False`) |
+    | **$n = 1$** | 2 | `ፈተና የሚያስችላቸውን እንዲሁም ከላይ ተሰናብተው የተደለደሉት ኅየንተ ስብሰባዎች ከመቼውም ተቀምጠዋል ንጉሥ ሦስት አንገታቸውን የአካባቢው ተላቃ የኮሚሽኑ በሮመዳን የስታዲየም በመልካም የመሣሪያዎች ሃንድ ተጠናቆ የያህዌ እንደሚቻልና አልፎ።` | 25 | $-276.58$ | $-11.06$ | No (`False`) |
+    | **$n = 1$** | 3 | `ጥፋት ወደ አልሆነልንም ለማዋረድ ለፍቅርና ንዶ ዶክተሩ በሃላፊነት ገቢ ዙሪያ ያሳዩበት ወገኔ በልጅ እንደተሰማሩ ከኢራን ሊረዳው በመንገዱ ትልልቅ እንደ ለማንሳት እንዲሆኑ ከራሳቸው በመድማት ፈጣሪ መንግሥት።` | 25 | $-270.53$ | $-10.82$ | No (`False`) |
+    | **$n = 2$** | 1 | `አበረታች ውጤት ማስቀጠል የግድ ይለናል እንጂ ለአንድ የተወሰነ አንድ ላይ እንዴት እንደሚታይ አስረድተዋል።` | 13 | $-77.11$ | $-5.93$ | No (`False`) |
+    | **$n = 2$** | 2 | `የአባቶቻችን አምላክ በጎች ሕይወት ቀላል ማድረግ ብቸኛው ኢትዮጵያዊ ሁሉ ስለ ሚገኙ ኣብያተ ክርስቲያናት አካባቢ የእስረኞቹ መፈታት ያለባቸው ሆነው ሳለ አንድ ፈራጅ መሆኑ ዛሬ ሥልጣን ለማስጠበቅ።` | 25 | $-149.80$ | $-5.99$ | No (`False`) |
+    | **$n = 2$** | 3 | `በእጅጉ ቀንሶታል የሚሉት ከብዙ ን ጠቅሰው በቀጣይ በሚደረገው ምርጫ ቦርድ ውስጥ የሚሠሩ ተቋማት ብዙ ሰው ምስጢር ነበር የሚሉም ነበሩ።` | 19 | $-108.36$ | $-5.70$ | No (`False`) |
+    | **$n = 3$** | 1 | `ቢሏቸው ምን እንዳሉ ታውቃላችሁ።` | 4 | $-19.62$ | $-4.91$ | No (`False`) |
+    | **$n = 3$** | 2 | `የዓለም ዋንጫ ጉብኝት በዘጠኝ ወራት ውስጥ ችግር እንዳለ ጠቁመዋል።` | 9 | $-32.56$ | $-3.62$ | No (`False`) |
+    | **$n = 3$** | 3 | `ናቸው የዚያ ሰፈር ልጆች ትምህርት ቤት ዲዛይን አልቋል።` | 8 | $-32.95$ | $-4.12$ | No (`False`) |
+    | **$n = 4$** | 1 | `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር ከ በላይ ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል።` | 12 | $-29.04$ | $-2.42$ | No (`False`) |
+    | **$n = 4$** | 2 | `ሠራተኛ የነበረ ቢሆንም የነፍሱ ጥሪ ግን ሥራ ፈጠራ ነበር።` | 9 | $-19.43$ | $-2.16$ | No (`False`) |
+    | **$n = 4$** | 3 | `የተሸጠው መሬት እጅግ አነስተኛ መሆኑን ገልፀዋል።` | 6 | $-18.11$ | $-3.02$ | No (`False`) |
 
-    * $n = 1$: **0 / 3 (0.0%)** full verbatim copies
-    * $n = 2$: **0 / 3 (0.0%)** full verbatim copies
-    * $n = 3$: **0 / 3 (0.0%)** full verbatim copies
-    * $n = 4$: **0 / 3 (0.0%)** full verbatim copies
-    * **Overall Duplication Rate:** **0 / 12 (0.0%)**.
   * **Order Progression Metrics Summary:**
 
-    |     Order $n$     | Conditioning History | Avg. Length | Avg. Total $\log P$ | Avg. Per-Token $\log P$ | Equivalent Per-Token Branching ($e^{-\overline{\log P}/L}$) | Verbatim Sentence Copies | Syntactic & Discourse Realization                                                            |
-    | :-----------------: | :------------------: | :---------: | :-------------------: | :-----------------------: | :-----------------------------------------------------------: | :----------------------: | :------------------------------------------------------------------------------------------- |
-    | **$n = 1$** |  None ($0$ words)  | 25.0 tokens |      $-285.52$      |        $-11.42$        |                      $\approx 91,126$                      |  **0 / 3 (0.0%)**  | Unordered "word salad"; complete absence of syntactic agreement or clause structure.         |
-    | **$n = 2$** |        1 word        | 19.0 tokens |      $-111.76$      |         $-5.84$         |                        $\approx 344$                        |  **0 / 3 (0.0%)**  | Valid local 2-word collocations and modifier pairings; wandering global discourse.           |
-    | **$n = 3$** |       2 words       | 7.0 tokens |      $-28.38$      |         $-4.21$         |                        $\approx 67$                        |  **0 / 3 (0.0%)**  | Fluent clause structures, correct verb inflection, natural colloquial and journalistic tone. |
-    | **$n = 4$** |       3 words       | 9.0 tokens |      $-22.19$      |    $\mathbf{-2.53}$    |                   $\mathbf{\approx 12.5}$                   |  **0 / 3 (0.0%)**  | Near-human fluency; complex subordinate, concessive, and complement clauses.                 |
-  * **Detailed Explanation of What Happens as $n$ Increases (Grounded in Model Outputs):**
+    | Order $n$ | Conditioning History | Avg. Length | Avg. Total $\log P$ | Avg. Per-Token $\log P$ | Effective Branching ($e^{-\overline{\log P}/L}$) | Verbatim Sentence Copies | Syntactic & Qualitative Observations |
+    | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+    | **$n = 1$** | None ($0$ words) | 25.0 tokens | $-285.52$ | **$-11.42$** | $\approx 91,126$ | **0 / 3 (0.0%)** | Unordered word salad; complete absence of concord or phrase boundaries. |
+    | **$n = 2$** | 1 word | 19.0 tokens | $-111.76$ | **$-5.88$** | $\approx 358$ | **0 / 3 (0.0%)** | Valid local 2-word collocations (`አበረታች ውጤት`, `ቀላል ማድረግ`); wandering global semantics. |
+    | **$n = 3$** | 2 words | 7.0 tokens | $-28.38$ | **$-4.21$** | $\approx 67$ | **0 / 3 (0.0%)** | Multi-word clause structure; natural termination; occasional initial copula defect (`ናቸው`). |
+    | **$n = 4$** | 3 words | 9.0 tokens | $-22.19$ | **$-2.53$** | $\approx 12.5$ | **0 / 3 (0.0%)** | Advanced clause coordination and subordination; occasional ellipsis defect (`ከ በላይ`). |
 
-    1. **Syntactic Coherence and Grammatical Concord:**
+  * **Sampling Parameters & Length Distribution Arithmetic:**
+    - *Settings:* `SEED = 42`, standard multinomial sampling ($T = 1.0$), maximum length 25 tokens.
+    - *Sampler Constraint:* Minimum sentence length of 3 tokens was enforced by suppressing `EOS` for the first 2 steps (`len(gen_words) < 3`).
+    - *Unigram Length Arithmetic:* At $n = 1$, the global end-of-sentence probability is:
+      $$P(\text{EOS}) = \frac{4,993,570}{81,161,104} \approx \mathbf{0.0615}$$
+      An unconstrained geometric distribution gives expected length $1 / p \approx 16.25$ tokens. With EOS suppressed for the first 2 tokens, the sequence has 23 steps remaining to terminate before hitting the 25-token cap. The probability of not drawing EOS at any step is $1 - 0.0615 = 0.9385$. The probability of surviving 23 consecutive steps without drawing EOS is:
+      $$(0.9385)^{23} \approx \mathbf{0.233} \quad (23.3\%)$$
+      The joint probability that all three independent unigram sentences hit the 25-token limit is $(0.233)^3 \approx \mathbf{0.0126}$ (**1.26%**). This explains why all three samples reached the cap under seed 42.
 
-       * **At $n = 1$ (Unigram):** The model samples tokens independently from the unigram prior $P(w)$, ignoring grammatical history entirely ($P(w_i \mid w_{<i}) = P(w_i)$). As observed in Sentence 1 (`ያስተዋልነው ቱርክ ልፃፍ ማብራሪያም ገንዘብ ዘገየችን ...`), words of incompatible syntactic categories are arbitrarily juxtaposed (e.g., relative perfective verb `ያስተዋልነው` $\to$ proper noun `ቱርክ` $\to$ first-person jussive verb `ልፃፍ` $\to$ noun with conjunction `ማብራሪያም` $\to$ noun `ገንዘብ` $\to$ 3rd-person feminine perfective verb with 1st-person plural object suffix `ዘገየችን`). There is zero subject-verb agreement, zero case concord, and no discernible phrase boundary.
-       * **At $n = 2$ (Bigram):** Conditioning on the single preceding token ($P(w_i \mid w_{i-1})$) immediately enforces local morphological and collocational validity. Realized outputs demonstrate legitimate two-word syntactic combinations: adjective-noun pairings (`አበረታች ውጤት` — "encouraging result"), modal verbal idioms (`ማስቀጠል የግድ ይለናል` — "we are obligated to continue"), and adjective-infinitive predicates (`ቀላል ማድረግ` — "to simplify / make easy"). However, because memory extends only one word back, the model exhibits "syntactic drift": Sentence 2 strings together plausible adjacent bigrams regarding church properties, prisoner releases, and governmental authority, but lacks a coherent argument structure or unifying semantic subject.
-       * **At $n = 3$ (Trigram):** Conditioning on a two-word history ($P(w_i \mid w_{i-2}, w_{i-1})$) unlocks genuine multi-word clause construction. The model maintains subject-predicate concord across entire clauses: Sentence 1 (`ቢሏቸው ምን እንዳሉ ታውቃላችሁ።` — *"Do you know what they said when they told them?"*) produces a perfectly formed colloquial question with correct subordinate conditional marking (`ቢ-`), object suffix (`-ቸው`), embedded interrogative clause (`ምን እንዳሉ`), and agreeing second-person plural matrix verb (`ታውቃላችሁ`). Sentence 2 (`የዓለም ዋንጫ ጉብኝት በዘጠኝ ወራት ውስጥ ችግር እንዳለ ጠቁመዋል።` — *"They pointed out that there was a problem within nine months of the World Cup tour."*) generates an authentic journalistic report with a compound temporal prepositional phrase (`በዘጠኝ ወራት ውስጥ`) and subordinate existential complement (`ችግር እንዳለ`) correctly governed by the reporting verb (`ጠቁመዋል።`).
-       * **At $n = 4$ (4-gram):** Conditioning on a three-word history ($P(w_i \mid w_{i-3}, w_{i-2}, w_{i-1})$) achieves near-human syntactic sophistication. The model reliably generates complex subordinate clauses: Sentence 1 (`ሆቴሉ ተጠናቅቆ ስራ ሲጀምር ከ በላይ ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል።`) seamlessly coordinates temporal gerundives (`ተጠናቅቆ`), temporal subordinate clauses (`ስራ ሲጀምር`), institutional development collocations (`የስራ እድል ይፈጥራል`), and passive indirect reporting (`ተብሏል`). Sentence 2 (`ሠራተኛ የነበረ ቢሆንም የነፍሱ ጥሪ ግን ሥራ ፈጠራ ነበር።` — *"Although he was an employee, his soul's calling was entrepreneurship."*) reproduces an advanced concessive syntactic frame (`ቢሆንም ... ግን ... ነበር`).
-    2. **Sentence Length and Natural Boundary Termination (`</s>` / `።`):**
+  * **Vocabulary Accounting:**
+    - Full GPAC surface vocabulary: **1,893,211** unique lexical words.
+    - The figure $|V| = 333,707$ represents the pruned training core vocabulary (words with $C \ge 2$) utilized in Q2 and Q3 splits; it does not represent the full corpus lexicon.
 
-       * **Unigram ($n = 1$):** Every generated sentence hits the artificial upper bound of $25$ tokens (100% cutoff rate). Because the model possesses no context, the probability of producing the end-of-sentence token `</s>` is simply its global unigram frequency ($P(\text{EOS}) \approx 0.064$). The probability of continuing a sequence at each step is $\approx 0.936$, leading to expected sequence lengths far exceeding 25 tokens.
-       * **Bigram ($n = 2$):** Sentence length begins to vary dynamically ($13$, $25$, and $19$ tokens). The model recognizes that certain lexical items (such as conjugated perfective verbs like `አስረድተዋል`) have high transitional probabilities to sentence-final punctuation (`።` / `</s>`), allowing Sentence 1 to terminate naturally at 13 tokens.
-       * **Trigram and 4-gram ($n = 3, 4$):** 100% of generated sentences terminate naturally via `</s>` at lengths closely mirroring natural Amharic prose: $4$, $9$, and $8$ tokens for $n = 3$ (mean 7.0 tokens), and $12$, $9$, and $6$ tokens for $n = 4$ (mean 9.0 tokens). Zero sentences hit the 25-token truncation limit. The conditioning histories preceding terminal punctuation (e.g. `ታውቃላችሁ`, `ጠቁመዋል`, `አልቋል`, `ተብሏል`, `ነበር`, `ገልፀዋል`) overwhelmingly favor `</s>`, ensuring sharp, syntactically appropriate sentence closure.
-    3. **Monotonic Surge in Predictive Likelihood and Model Confidence:**
+  * **Verbatim Sentence Checks & Sub-Sentence Span Recombination:**
+    - *Exact Sentence Check:* All 12 sentences were checked against all 4,993,570 sentences in `GPAC_cleaned.txt` via 64-bit BLAKE2b hashes. Exactly **0 out of 12 (0.0%)** sentences are verbatim duplicates.
+    - *Sub-Sentence Span Recombination:* Rather than memorizing whole sentences, the 4-gram model functions as an idiomatic assembler. It draws attested 3-word and 4-word formulaic chunks (e.g. `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር`, `የስራ እድል ይፈጥራል ተብሏል`, `የነፍሱ ጥሪ ግን`, `ሥራ ፈጠራ ነበር`) and joins them at valid syntactic branching points.
 
-       * Average per-token log-probability rises monotonically and dramatically across orders:
-         $$
-         \overline{\log P}/\text{token}: \quad -11.42 \; (n=1) \;\longrightarrow\; -5.84 \; (n=2) \;\longrightarrow\; -4.21 \; (n=3) \;\longrightarrow\; \mathbf{-2.53} \; (n=4)
-         $$
-       * In probability space, the effective branching perplexity per word drops by over three orders of magnitude from $\approx 91,126$ at $n=1$ down to $\approx 12.5$ at $n=4$. With each additional conditioning token, the model eliminates vast swaths of incompatible vocabulary, concentrating probability mass tightly onto grammatical and collocationally expected continuations.
-    4. **Idiomatic Recombination vs. Verbatim Duplication (The 0.0% Duplication Finding):**
-
-       * A classic concern in high-order language modeling is that as $n$ increases, the model ceases to generalize and simply memorizes whole sentences from the training set.
-       * To verify this empirically, all 12 generated sentences were checked against all 4,993,570 lines of the cleaned corpus `GPAC_cleaned.txt` using 64-bit BLAKE2b hash lookups.
-       * **Result:** Exactly **0 out of 12 (0.0%)** sentences were verbatim corpus copies. Even at $n = 4$, the model did not copy any pre-existing sentence in its entirety.
-       * **Linguistic Explanation:** Rather than rote whole-sentence memorization, the 4-gram model acts as a **modular assembler** of institutional collocations and syntactic frames. It strings together high-frequency formulaic multi-word segments (such as `ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል` or `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር`) at legitimate branching points where multiple continuations exist, producing novel yet completely natural compositions.
-    5. **The Fundamental Generative Trade-off (Fluency vs. Context Sparsity):**
-
-       * As $n$ increases from 1 to 4, output quality transitions from ungrammatical randomness to fluent, human-like Amharic text.
-       * However, this fluency comes at the cost of **combinatorial context sparsity**: the number of possible contexts scales as $|V|^{n-1}$ ($\approx 3.7 \times 10^{16}$ possible 3-word contexts for $|V| = 333,707$), while observed training contexts remain finite. At $n = 4$, many histories have very few observed continuations, leading to low branching entropy within recognized idioms and requiring frequent reliance on interpolated Kneser-Ney smoothing when bridging between phrasal chunks.
+  * **Qualitative Defect Analysis & Translation Glosses (Author Translations):**
+    - *$n=4$, Sentence 1:* `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር ከ በላይ ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል።`
+      *Gloss:* *"It was stated that when the hotel is completed and begins operations, it will create job opportunities for more than [...] youths."*
+      *Defect:* Contains an ellipsis defect where `ከ በላይ` (*"more than"*) lacks the required numeral/quantity (e.g., `ከ 100 በላይ`).
+    - *$n=4$, Sentence 2:* `ሠራተኛ የነበረ ቢሆንም የነፍሱ ጥሪ ግን ሥራ ፈጠራ ነበር።`
+      *Gloss:* *"Although he had been an employee, his soul's true calling was entrepreneurship."*
+      *Observation:* Fluent concessive frame (`ቢሆንም ... ግን ... ነበር`) with valid contrastive syntax.
+    - *$n=4$, Sentence 3:* `የተሸጠው መሬት እጅግ አነስተኛ መሆኑን ገልፀዋል።`
+      *Gloss:* *"They stated that the land sold was extremely minimal."*
+      *Observation:* Natural reporting complement clause (`መሆኑን ገልፀዋል`).
+    - *$n=3$, Sentence 1:* `ቢሏቸው ምን እንዳሉ ታውቃላችሁ።`
+      *Gloss:* *"Do you know what they said when they told them?"*
+      *Observation:* Colloquial interrogative structure with agreement between subordinate `እንዳሉ` and matrix verb `ታውቃላችሁ`.
+    - *$n=3$, Sentence 2:* `የዓለም ዋንጫ ጉብኝት በዘጠኝ ወራት ውስጥ ችግር እንዳለ ጠቁመዋል።`
+      *Gloss:* *"They indicated that there was a problem within nine months of the World Cup tour."*
+      *Defect:* Grammatically well-formed journalistic phrasing, but semantically disjoint.
+    - *$n=3$, Sentence 3:* `ናቸው የዚያ ሰፈር ልጆች ትምህርት ቤት ዲዛይን አልቋል።`
+      *Gloss:* *"[They are] that neighborhood's children school design is finished."*
+      *Defect:* Begins abnormally with the copula `ናቸው` as the initial token, an unnatural syntactic opening in standard Amharic.
 
 ---
 
