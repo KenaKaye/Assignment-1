@@ -84,7 +84,7 @@ def health_check():
 @app.get("/suggest", response_model=SuggestResponse)
 @app.get("/api/suggest", response_model=SuggestResponse)
 def suggest_endpoint(
-    text: str = Query(..., description="Amharic text prefix or partial sentence", min_length=1, max_length=500),
+    text: str = Query(..., description="Amharic text prefix or partial sentence", min_length=1),
     n: int = Query(3, description="N-gram order (2 for Bigram, 3 for Trigram)", ge=2, le=3),
     k: int = Query(5, description="Number of suggestions to return", ge=1, le=5)
 ):
@@ -97,6 +97,10 @@ def suggest_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "invalid_input", "message": "Text parameter cannot be empty or solely whitespace."}
         )
+
+    # For predictive text, condition on the tail words (last 500 chars max)
+    if len(cleaned_text) > 500:
+        cleaned_text = cleaned_text[-500:]
 
     try:
         result = suggest_candidates(cleaned_text, n=n, k=k)

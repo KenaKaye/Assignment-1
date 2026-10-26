@@ -16,9 +16,10 @@ from pathlib import Path
 
 # Paths
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = REPO_ROOT / "data"
-RESULTS_DIR = REPO_ROOT / "results"
-FIGURES_DIR = REPO_ROOT / "figures"
+OUTPUT_DIR = REPO_ROOT / "output"
+DATA_DIR = OUTPUT_DIR / "data"
+RESULTS_DIR = OUTPUT_DIR / "results"
+FIGURES_DIR = OUTPUT_DIR / "figures"
 COUNTS_DIR = DATA_DIR / "counts"
 FULL_COUNTS_DIR = COUNTS_DIR / "full"
 TRAIN_COUNTS_DIR = COUNTS_DIR / "train_seed42"

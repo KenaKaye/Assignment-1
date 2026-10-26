@@ -1,0 +1,38 @@
+[
+  {
+    "order": 1,
+    "N": 81161104,
+    "distinct": 1893211,
+    "seconds": 26.55,
+    "peak_rss_mb": 2469.77,
+    "budget_mb": 10654.0,
+    "partitioned": false
+  },
+  {
+    "order": 2,
+    "N": 81161104,
+    "distinct": 24512092,
+    "seconds": 113.78,
+    "peak_rss_mb": 3518.26,
+    "budget_mb": 10654.0,
+    "partitioned": false
+  },
+  {
+    "order": 3,
+    "N": 81161104,
+    "distinct": 44980457,
+    "seconds": 198.06,
+    "peak_rss_mb": 4777.53,
+    "budget_mb": 10654.0,
+    "partitioned": false
+  },
+  {
+    "order": 4,
+    "N": 81161104,
+    "distinct": 52176782,
+    "seconds": 304.26,
+    "peak_rss_mb": 5788.01,
+    "budget_mb": 10654.0,
+    "partitioned": false
+  }
+]

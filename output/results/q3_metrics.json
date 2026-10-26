@@ -1,0 +1,153 @@
+{
+  "task": "real-vs-corrupted Amharic sentence detection",
+  "data_leakage_overlap_count": 0,
+  "tuning_pairs_count": 499358,
+  "test_pairs_count": 998714,
+  "unk_confound_baseline": {
+    "description": "Predict real based on UNK token count",
+    "accuracy": 0.5163,
+    "roc_auc": 0.5184
+  },
+  "environment": {
+    "numpy_version": "2.1.3",
+    "scikit_learn_version": "1.6.1"
+  },
+  "models": {
+    "n=1": {
+      "order": 1,
+      "tau_threshold": -10.2542,
+      "tuning_f1": 0.7437,
+      "tie_breaking_rule": "first_maximum",
+      "accuracy": 0.7121,
+      "precision": 0.672,
+      "recall": 0.8287,
+      "f1_score": 0.7422,
+      "roc_auc": 0.8118,
+      "confusion_matrix": {
+        "tp": 413798,
+        "fp": 201943,
+        "tn": 297414,
+        "fn": 85559
+      },
+      "sensitivity_unk_free": {
+        "pair_count": 738256,
+        "accuracy": 0.7278,
+        "precision": 0.6939,
+        "recall": 0.8153,
+        "f1_score": 0.7497,
+        "roc_auc": 0.8233,
+        "confusion_matrix": {
+          "tp": 300945,
+          "fp": 132780,
+          "tn": 236348,
+          "fn": 68183
+        }
+      },
+      "proposed_target": "AUC >= 0.80 and accuracy >= 0.70 (proposed target set by the group, not a published standard)",
+      "usable": true,
+      "scoring_time_sec": 9.81
+    },
+    "n=2": {
+      "order": 2,
+      "tau_threshold": -8.57,
+      "tuning_f1": 0.7576,
+      "tie_breaking_rule": "first_maximum",
+      "accuracy": 0.7358,
+      "precision": 0.7006,
+      "recall": 0.8237,
+      "f1_score": 0.7572,
+      "roc_auc": 0.8359,
+      "confusion_matrix": {
+        "tp": 411323,
+        "fp": 175781,
+        "tn": 323576,
+        "fn": 88034
+      },
+      "sensitivity_unk_free": {
+        "pair_count": 738256,
+        "accuracy": 0.7452,
+        "precision": 0.7082,
+        "recall": 0.834,
+        "f1_score": 0.766,
+        "roc_auc": 0.8473,
+        "confusion_matrix": {
+          "tp": 307859,
+          "fp": 126868,
+          "tn": 242260,
+          "fn": 61269
+        }
+      },
+      "proposed_target": "AUC >= 0.80 and accuracy >= 0.70 (proposed target set by the group, not a published standard)",
+      "usable": true,
+      "scoring_time_sec": 45.67
+    },
+    "n=3": {
+      "order": 3,
+      "tau_threshold": -8.652,
+      "tuning_f1": 0.7468,
+      "tie_breaking_rule": "first_maximum",
+      "accuracy": 0.7133,
+      "precision": 0.6684,
+      "recall": 0.8467,
+      "f1_score": 0.747,
+      "roc_auc": 0.8,
+      "confusion_matrix": {
+        "tp": 422802,
+        "fp": 209772,
+        "tn": 289585,
+        "fn": 76555
+      },
+      "sensitivity_unk_free": {
+        "pair_count": 738256,
+        "accuracy": 0.7212,
+        "precision": 0.6744,
+        "recall": 0.8552,
+        "f1_score": 0.7541,
+        "roc_auc": 0.812,
+        "confusion_matrix": {
+          "tp": 315673,
+          "fp": 152397,
+          "tn": 216731,
+          "fn": 53455
+        }
+      },
+      "proposed_target": "AUC >= 0.80 and accuracy >= 0.70 (proposed target set by the group, not a published standard)",
+      "usable": true,
+      "scoring_time_sec": 115.98
+    },
+    "n=4": {
+      "order": 4,
+      "tau_threshold": -8.7901,
+      "tuning_f1": 0.7478,
+      "tie_breaking_rule": "first_maximum",
+      "accuracy": 0.709,
+      "precision": 0.66,
+      "recall": 0.8623,
+      "f1_score": 0.7477,
+      "roc_auc": 0.7895,
+      "confusion_matrix": {
+        "tp": 430603,
+        "fp": 221827,
+        "tn": 277530,
+        "fn": 68754
+      },
+      "sensitivity_unk_free": {
+        "pair_count": 738256,
+        "accuracy": 0.7166,
+        "precision": 0.6659,
+        "recall": 0.8692,
+        "f1_score": 0.7541,
+        "roc_auc": 0.8007,
+        "confusion_matrix": {
+          "tp": 320835,
+          "fp": 160957,
+          "tn": 208171,
+          "fn": 48293
+        }
+      },
+      "proposed_target": "AUC >= 0.80 and accuracy >= 0.70 (proposed target set by the group, not a published standard)",
+      "usable": false,
+      "scoring_time_sec": 181.69
+    }
+  }
+}

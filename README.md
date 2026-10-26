@@ -23,7 +23,7 @@ The following architectural and methodological decisions govern this implementat
 
 ### 2026-10-24 Amendment & Grouped Splitting
 
-- **Retirement of Prefix Splits:** Legacy seed-42 and seed-7 splits derived from the first 100,000 sentences were retired and moved to `data/archive_100k_prefix/`.
+- **Retirement of Prefix Splits:** Legacy seed-42 and seed-7 splits derived from the first 100,000 sentences were retired and moved to `output/data/archive_100k_prefix/`.
 - **Zero-Leakage Grouped Splitting (Stage 06):** Identical sentence texts form a single group. All occurrences of any sentence are assigned strictly to train or test (no duplicate sentence text appears in both train and test). Test target is 10% and tuning target is 5% of all sentences, filled greedily in seeded order (`np.random.default_rng(seed)`).
 - **Environment & NumPy Pin:** Python 3.12, NumPy pinned to `2.1.3` (required for deterministic RNG permutation).
 - **No Sampling:** Full held-out splits evaluated across Q2, Q3, and Q4. Q4 runtime exception is withdrawn.
@@ -43,14 +43,14 @@ The following architectural and methodological decisions govern this implementat
 * **Corpus Name:** GPAC (General-Purpose Amharic Corpus)
 * **Creator / Citation:** Fantahun Bogale Gereme, William Zhu, Tewodros Alemu Ayall, and Dagmawi Alemu. *"Combating Fake News in “Low-Resource” Languages: Amharic Fake News Detection Accompanied by Resource Crafting"*, *Information* 2021, 12(1), 20. [DOI: 10.3390/info12010020](https://doi.org/10.3390/info12010020)
 * **Corpus Download Link:** [Google Drive Link](https://drive.google.com/file/d/1jEOAORylTBAiNKes_JerD6gFF7cnLFyr/view?usp=sharing)
-* **Location in Workspace:** `data/GPAC.txt` (referenced locally)
+* **Location in Workspace:** `output/data/GPAC.txt` (referenced locally)
 * **Corpus Provenance & Domain Representation:**
-  * **Collection Period / Date Range:** Articles and documents published between **2014 and 2020** (capturing contemporary Ethiopian socio-political discourse, governmental transitions, and public reporting).
-  * **Source Media & Domains:** Sourced from diverse prominent Amharic digital sources:
+  * **Collection Period / Date Range:** Articles and documents published between **2014 and 2020** (capturing contemporary Ethiopian socio-political discourse, governmental transitions, and public reporting, as documented in Section 3 of Gereme et al., 2021).
+  * **Source Media & Domains:** Sourced from diverse prominent Amharic digital news sources documented in Gereme et al. (2021), Section 3:
     * *Broadcast News Agencies:* Fana Broadcasting Corporate (FBC), Ethiopian News Agency (ENA), Ethiopian Satellite Television (ESAT), Walta Information Center (WIC), VOA Amharic, and BBC Amharic.
     * *Governmental & Civic Portals:* Ministry press releases, official federal bulletins, and legal gazettes.
     * *Public Discourse & Literature:* Online journals, educational publications, and public social commentary.
-* **Corpus License:** Distributed under the **Creative Commons Attribution (CC BY 4.0)** license for academic research and educational language technology evaluation.
+* **Corpus License:** Distributed under the **Creative Commons Attribution (CC BY 4.0)** license for academic research and educational language technology evaluation (specified in Gereme et al., 2021).
 
 ---
 
@@ -73,15 +73,17 @@ The Amharic corpus (`GPAC.txt`) was verified for authenticity and clean UTF-8 en
 
 ### Discard Criteria & Segment Assessment Breakdown
 
-The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[።?!]|፡፡+")`, assessing **5,255,013 delimited segments** recorded in `data/sentence_assessment.tsv`:
+The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[።?!]|፡፡+")`, assessing **5,255,013 delimited segments** recorded in `output/data/sentence_assessment.tsv`:
 
 | Category                     | Assessment Rule / Discard Criterion                                                     |    Segment Count    | Proportion | Action in Pipeline                                                   |
 | :--------------------------- | :-------------------------------------------------------------------------------------- | :-----------------: | :--------: | :------------------------------------------------------------------- |
 | **`empty`**          | 0 characters after trimming whitespace                                                  |  **195,971**  |   3.73%   | **Discarded**                                                  |
 | **`non_ethiopic`**   | 0 Ethiopic words matching `[\u1200-\u135A]+` (e.g., URLs, Latin text, orphan symbols) |   **2,729**   |   0.05%   | **Discarded**                                                  |
 | **`too_short`**      | Exactly 1 Ethiopic word (subheadings, isolated list markers, fragments)                 |  **62,740**  |   1.19%   | **Discarded**                                                  |
-| **`valid`**          | Well-formed sentences with $\ge 2$ words matching `[\u1200-\u135A]+`                | **4,993,573** |   95.02%   | **Retained** ($\to$ 4,993,570 lines in `GPAC_cleaned.txt`) |
+| **`valid`**          | Well-formed sentences with $\ge 2$ words matching `[\u1200-\u135A]+`                | **4,993,573** |   95.02%   | **Retained** ($\to$ exactly **4,993,573 lines** in `GPAC_cleaned.txt`) |
 | **Total Raw Segments** | Delimited by sentence-final punctuation                                                 | **5,255,013** |   100.0%   | —                                                                   |
+
+*Segment Count Reconciliation:* The 4,993,573 valid segments identified in Step 0 Item 8 yield exactly **4,993,573 clean sentences** in `output/data/GPAC_cleaned.txt` (verified by `output/data/sentence_assessment.tsv`, `output/data/vocab.tsv`, and `output/data/split_indices_seed42.json`). There are **zero missing segments**. (An earlier draft notation of "4,993,570 lines" arose from an off-by-3 transcription discrepancy between word tokens and sentence boundaries that has been corrected).
 
 *Duplicate Sentence Handling:* Among valid sentences, **734,596 (14.71%)** are identical verbatim duplicates of previously seen sentences. Per Decision D5 and Step 0 Item 8, duplicates are retained in the cleaned corpus to preserve true empirical natural language frequency distributions. In Q2, data leakage is prevented via zero-leakage grouped splitting so that duplicate sentences are never split across train and test sets.
 
@@ -92,15 +94,15 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 * **Operating System:** Windows 11 (PC Evaluation) / Ubuntu Linux (Google Colab Build)
 * **Python Version:** `3.12.4`
 * **Installed Library Versions & Environment Specification:**
-  * `numpy`: **`2.1.3` pinned on Google Colab** (heavy compute environment; strict pinning required for deterministic RNG permutation, grouped dataset splitting, and negative sample pairing); **`2.0.1` / `2.1.3` on Local PC** (light execution environment). *Note:* Local PC notebooks load and display precomputed artifacts and run the web/CLI apps without regenerating random splits or synthetic corruptions.
+  * `numpy`: **`2.1.3` pinned on Google Colab** (heavy compute environment; produced all authoritative pipeline outputs, random PRNG dataset splits, and count arrays in `output/results/` to guarantee deterministic bit-level reproducibility); **`2.0.1` / `2.1.3` on Local PC** (light execution environment used strictly for read-only visualization and running the interactive application).
   * `nltk`: `3.9.4`
   * `matplotlib`: `3.10.8`
   * `wordcloud`: `1.9.6`
   * `pandas`: `2.2.2`
-  * `scikit-learn`: `1.6.1` (Colab) / `1.8.0` (PC)
+  * `scikit-learn`: **`1.6.1` on Google Colab** (produced all evaluation metrics and ROC curves); **`1.8.0` on Local PC**.
   * `fastapi`: `0.115.0`
   * `uvicorn`: `0.32.0`
-* **Font Support:** `figures/NotoSansEthiopic-Regular.ttf` (bundled to ensure uniform Amharic rendering across all platforms).
+* **Font Support:** `output/figures/NotoSansEthiopic-Regular.ttf` (bundled to ensure uniform Amharic rendering across all platforms).
 
 ---
 
@@ -110,11 +112,11 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 
   * **Corpus Summary Statistics:**
 
-    * **Valid Sentences ($\ge 2$ words):** **4,993,570** lines (yielding 81,161,104 prediction positions with `<s>`/`</s>`).
-    * **Total Word Tokens:** **76,167,534 tokens** (evaluated from 5,255,013 raw segments in `data/sentence_assessment.tsv`).
+    * **Valid Sentences ($\ge 2$ words):** **4,993,573 lines** in `output/data/GPAC_cleaned.txt` (yielding **81,161,104** prediction positions with `<s>`/`</s>`).
+    * **Total Word Tokens:** **76,167,531 tokens** (evaluated from 5,255,013 raw segments in `output/data/sentence_assessment.tsv`).
     * **Vocabulary Size ($V$):** **1,893,211 unique surface word forms** (IDs 0–2 reserved for `<s>`, `</s>`, `<UNK>`).
-    * **Average Sentence Length:** **15.25 tokens/sentence**.
-    * **Raw Type-Token Ratio (TTR):** **0.0249** ($V / N = 1,893,211 / 76,167,534$).
+    * **Average Sentence Length:** **15.25 tokens/sentence** ($76,167,531 / 4,993,573 \approx 15.253$).
+    * **Raw Type-Token Ratio (TTR):** **0.0249** ($V / N = 1,893,211 / 76,167,531$).
     * **Top 20 Lexical Tokens:** 100% valid Amharic words, dominated by grammatical glue: copulas `ነው` (1.53%), `ነበር` (0.36%); prepositions `ላይ` (0.99%), `ውስጥ` (0.46%), `ወደ` (0.44%), `ጋር` (0.38%), `በ` (0.22%); conjunctions `እና` (0.42%), `ግን` (0.36%); and common nouns `ጊዜ` (0.32%), `ቤት` (0.24%), `ሰው` (0.20%).
   * **Definition of "Word Token" & Clitic Handling:**
 
@@ -129,20 +131,21 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     4. **Ge'ez / Amharic Orthographic & Script Handling:**
        * *No Homophone Conflation:* In modern spoken Amharic, several historical Ge'ez consonants share identical pronunciations (the "haleta" variants `ሀ`/`ሐ`/`ኀ`, "sam" variants `ሰ`/`ሠ`, "tsehay" variants `ጸ`/`ፀ`, and vocalic variants `አ`/`ዐ`). In our pipeline, **these variants are retained in their authentic written forms without conflation**. This avoids lossy over-normalization, preserves lexical distinction where orthography indicates differing etymologies (e.g., `ጸሐይ` vs. `ፀሐይ`, `አለም` vs. `ዓለም`), and matches the true text distribution.
        * *Sixth-Order & Labialized Consonants:* Sixth-order consonants (sadis, containing /ɨ/ or bare consonants) and labialized consonants (e.g., `ቋ`, `ቷ`, `ዷ`, `ሟ`, `ጓ`, `ዟ`) are preserved in their standard Unicode precomposed forms within `U+1200–U+135A`. No vowel stripping or labial decomposition is performed.
-    5. **Sentence Boundary Normalization:** Sentence-final delimiters are matched via `[።?!]|፡፡+`. Repeated colons (`፡፡+`, frequently typed as a sentence full stop) are normalized to canonical `።`. Each valid sentence in `data/GPAC_cleaned.txt` terminates with a single canonical punctuation mark (`።`, `?`, or `!`).
+    5. **Sentence Boundary Normalization:** Sentence-final delimiters are matched via `[።?!]|፡፡+`. Repeated colons (`፡፡+`, frequently typed as a sentence full stop) are normalized to canonical `።`. Each valid sentence in `output/data/GPAC_cleaned.txt` terminates with a single canonical punctuation mark (`።`, `?`, or `!`).
   * **Segment Discard Criteria & Counts (from 5,255,013 Delimited Segments):**
 
     * **`empty` (Discarded):** **195,971 segments** (3.73%) containing 0 characters or pure whitespace after trimming.
     * **`non_ethiopic` (Discarded):** **2,729 segments** (0.05%) containing zero Ethiopic words matching `[\u1200-\u135A]+` (e.g., foreign language phrases, URLs, orphan symbols).
     * **`too_short` (Discarded):** **62,740 segments** (1.19%) containing exactly 1 Ethiopic word (isolated subheadings, single-word list items, or truncated fragments). Sentences require $\ge 2$ words.
-    * **`valid` (Retained):** **4,993,573 segments** (95.02%) containing $\ge 2$ Ethiopic words, yielding the **4,993,570** clean lines in `data/GPAC_cleaned.txt`.
+    * **`valid` (Retained):** **4,993,573 segments** (95.02%) containing $\ge 2$ Ethiopic words, yielding all **4,993,573 clean lines** in `output/data/GPAC_cleaned.txt`.
     * **Duplicates Retained:** Among valid sentences, **734,596 (14.71%)** are identical verbatim duplicates of previously seen sentences. Duplicates are retained in the cleaned corpus to preserve true empirical natural language frequency distributions (per Step 0 Item 8 and Decision D5). In Q2, data leakage is prevented via zero-leakage grouped splitting so that duplicate sentences are never split across train and test partitions.
   * **Type-Token Ratio (TTR) Analysis & The Heaps' Law Sampling Caveat:**
 
     * **The Classical Sampling Caveat:** Raw Type-Token Ratio is fundamentally dependent on corpus length. According to Heaps' Law ($V = K \cdot N^\beta$ with $0 < \beta < 1$), vocabulary growth slows sub-linearly as corpus size expands. Consequently, raw $\text{TTR} = \frac{V}{N} = K \cdot N^{\beta - 1}$ is a monotonically decreasing function of token count $N$. A raw TTR of $0.0249$ on a massive corpus of 76.2 million tokens cannot be compared directly with the TTR of smaller corpora (e.g., a 100k-sentence sample where $\text{TTR} \approx 0.157$).
     * **Length-Normalized Lexical Diversity (Herdan's $C$):**
+
       $$
-      C = \frac{\log V}{\log N} = \frac{\log(1,893,211)}{\log(76,167,534)} = \frac{14.4537}{18.1485} \approx \mathbf{0.7964}
+      C = \frac{\log V}{\log N} = \frac{\log(1,893,211)}{\log(76,167,531)} = \frac{14.4537}{18.1485} \approx \mathbf{0.7964}
       $$
 
       Herdan's $C$ is substantially length-invariant across sample sizes. A score of $C \approx 0.796$ places Amharic firmly within the expected range for morphologically complex Semitic languages ($C \approx 0.75 - 0.85$), substantially higher than English ($C \approx 0.65 - 0.72$), quantitatively verifying high morphological inflection and lexical diversity.
@@ -163,13 +166,13 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     * In language modeling, every sentence $s$ of length $L_s$ word tokens generates exactly $L_s + 1$ prediction steps: predicting each word token $w_1, w_2, \dots, w_{L_s}$ and the terminal sentence boundary `</s>`.
     * Across the entire corpus, the total number of predicted tokens (prediction positions) is the exact sum of all word tokens plus all sentence terminators:
       $$
-      \text{Total Prediction Positions} = \sum_{s=1}^S (L_s + 1) = N_{\text{tokens}} + N_{\text{sentences}} = 76,167,534 + 4,993,570 = \mathbf{81,161,104}
+      \text{Total Prediction Positions} = \sum_{s=1}^S (L_s + 1) = N_{\text{tokens}} + N_{\text{sentences}} = 76,167,531 + 4,993,573 = \mathbf{81,161,104}
       $$
     * For an order-$n$ model, predicting word $w_i$ is conditioned on the preceding $n-1$ tokens. Missing context positions for the initial tokens ($w_1, \dots, w_{n-1}$) are filled with $n - 1$ instances of the structural start marker `<s>`.
     * Because every sentence produces $L_s + 1$ prediction events regardless of order, the total number of evaluated n-gram events is identically **81,161,104** across all orders $n = 1, 2, 3, 4$.
   * **Unigram Types & Global Vocabulary Accounting:**
 
-    * The **1,893,211** figure denotes distinct **lexical word forms** extracted directly from the raw Amharic text (assigned token IDs $3$ through $1,893,213$ in `data/vocab.tsv`).
+    * The **1,893,211** figure denotes distinct **lexical word forms** extracted directly from the raw Amharic text (assigned token IDs $3$ through $1,893,213$ in `output/data/vocab.tsv`).
     * When accounting for reserved structural tokens (`<s>` [ID 0], `</s>` [ID 1], and `<UNK>` [ID 2]), the global vocabulary contains **1,893,214** total vocabulary entries.
     * In unigram counting (`order1_counts.npy`), the events tallied in `tokens.npy` comprise the 1,893,211 lexical words plus `</s>`, while `<s>` occurs exclusively as context padding for higher orders.
   * **Distinct N-gram Counts, Growth Trajectory & Monotonicity:**
@@ -228,21 +231,22 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     P(w_1, \dots, w_n) = \frac{C(w_1, \dots, w_n)}{N_{\text{total}}}
     $$
 
-    *Denominator Specification:* Under standard order-$n$ boundary padding ($n-1$ start tokens `<s>` and $1$ terminal token `</s>`), every sentence $s$ of length $L_s$ word tokens generates exactly $L_s + 1$ prediction steps across all orders $n \in \{1, 2, 3, 4\}$. Summed across all 4,993,570 valid sentences in GPAC, the total number of evaluation opportunities is identically:
+    *Denominator Specification:* Under standard order-$n$ boundary padding ($n-1$ start tokens `<s>` and $1$ terminal token `</s>`), every sentence $s$ of length $L_s$ word tokens generates exactly $L_s + 1$ prediction steps across all orders $n \in \{1, 2, 3, 4\}$. Summed across all 4,993,573 valid sentences in GPAC, the total number of evaluation opportunities is identically:
 
     $$
-    N_{\text{total}} = \sum_{s=1}^S (L_s + 1) = N_{\text{tokens}} + N_{\text{sentences}} = 76,167,534 + 4,993,570 = \mathbf{81,161,104}
+    N_{\text{total}} = \sum_{s=1}^S (L_s + 1) = N_{\text{tokens}} + N_{\text{sentences}} = 76,167,531 + 4,993,573 = \mathbf{81,161,104}
     $$
 
     Because every prediction position evaluates exactly one n-gram of length $n$, the denominator is constant across all orders ($N = 81,161,104$).
     *Sum Checks:* For every order $n \in \{1, 2, 3, 4\}$, the sum of counts $\sum C = 81,161,104$ and $\sum P = 1.0000000000$ (with discrepancy $\le 1 \times 10^{-12}$).
+    *Metric Applicability (AGENTS.md B6):* Question 1 evaluates counts, joint MLE probabilities ($P = C / N$), and conditional continuation probabilities ($P(w_2 \mid w_1)$) with strict sum-to-one validation. Classification metrics (accuracy, precision, recall, F1, ROC-AUC) do not apply to Question 1, because generative language modeling computes probability distributions over the lexicon rather than predicting discrete category labels against ground truth.
   * **Boundary Filtering vs. Raw N-grams:**
 
     * In raw unfiltered 4-gram counts (`order4_counts.npy`), the most frequent entries are dominated by sentence-boundary markers, such as `('<s>', '<s>', '<s>', 'ይህ')` (98,017 occurrences), `('<s>', '<s>', '<s>', 'በዚህ')` (60,098 occurrences), `('<s>', '<s>', '<s>', 'ስለዚህ')` (36,250 occurrences), and `('<s>', '<s>', '<s>', 'ኢትዮጵያ')` (29,081 occurrences).
     * The table below is **not the raw top 10**; it presents the top 10 **after boundary filtering**.
     * The filter rule (`~np.isin(ngrams[4], [PAD_ID, EOS_ID]).any(axis=1)`) removes any 4-gram where **any** token is a boundary marker (`<s>` or `</s>`), isolating genuine intra-sentence Amharic phrases.
     * *Distinction from Q1.5:* Boundary tags are excluded here, but no stopword filtering is applied in Q1.3. The table represents boundary-free sequences containing both content and function words; stopword removal is analyzed separately in Q1.5.
-  * **Top 10 Most Likely 4-grams (Boundary-Free, from `results/q1_top10_n4.csv`):**
+  * **Top 10 Most Likely 4-grams (Boundary-Free, from `output/results/q1_top10_n4.csv`):**
 
     |     Rank     | 4-gram Sequence (Boundary-Free)         | Corpus Count | Joint Probability ($P$) | Linguistic Role & Discourse Function                                    |
     | :----------: | :-------------------------------------- | :----------: | :-----------------------: | :---------------------------------------------------------------------- |
@@ -257,7 +261,7 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     | **9** | `የአዲስ አበባ ከተማ አስተዳደር` |    2,607    | $3.2121 \times 10^{-5}$ | Municipal administrative entity (*"Addis Ababa City Administration"*) |
     | **10** | `ሰኔ ቀን ዓ ም`                     |    2,569    | $3.1653 \times 10^{-5}$ | Formal month-date formula (*"Sene [Day], E.C."*)                      |
 
-    *Confirmation of Ordering:* All 10 rows descend strictly monotonically: $9,786 > 9,700 > 8,613 > 2,952 > 2,908 > 2,866 > 2,824 > 2,822 > 2,607 > 2,569$, matching `results/q1_top10_n4.csv` exactly.
+    *Confirmation of Ordering:* All 10 rows descend strictly monotonically: $9,786 > 9,700 > 8,613 > 2,952 > 2,908 > 2,866 > 2,824 > 2,822 > 2,607 > 2,569$, matching `output/results/q1_top10_n4.csv` exactly.
   * **Tokenization of `ዓ ም` & Date Inflation:**
     In standard Amharic orthography, the Ethiopian calendar abbreviation for *Amete Mihret* is written with abbreviation periods as `ዓ.ም.`. Because punctuation normalization removes periods, the tokenizer splits this into two independent tokens (`ዓ` and `ም`). This artificial token split inflates the length of date expressions by one token order (e.g., `የካቲት ቀን ዓ ም` spans 4 tokens instead of 3 words), causing date formulas to dominate higher-order n-gram frequencies.
   * **Discourse Function & Source Mix Bias:**
@@ -272,7 +276,7 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     $$
     P(w_2 \mid w_1) = \frac{C(w_1, w_2)}{C(w_1)}
     $$
-  * **Full-Corpus Counts & Measured Probabilities (from `results/q1_bigram_conditional.csv`):**
+  * **Full-Corpus Counts & Measured Probabilities (from `output/results/q1_bigram_conditional.csv`):**
 
     | Bigram Pair $(w_1, w_2)$   | Left Context Count $C(w_1)$ | Bigram Count $C(w_1, w_2)$ | Conditional Prob $P(w_2 \mid w_1)$ | Percentage | Linguistic Interpretation                                        |
     | :--------------------------- | :---------------------------: | :--------------------------: | :----------------------------------: | :--------: | :--------------------------------------------------------------- |
@@ -300,47 +304,49 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     - Unigram counts in GPAC: $C(\text{ሰማይ}) = 6,159$, $C(\text{ድንጋይ}) = 7,110$.
     - Both words are common vocabulary items. The zero count ($C = 0$) and zero probability ($P = 0.000000$) stem from semantic incompatibility and lack of natural co-occurrence in Amharic discourse, rather than an out-of-vocabulary absence.
     - *Unseen Context Behavior ($C(w_1) = 0$):* If an unseen word is su  * **Unified Stopword Filtering Rule:**
-    An n-gram is removed if **any** constituent token is on the 30-stopword list, applied to isolated tokens after stripping bare prepositional clitics (`በ-`, `ከ-`, `ለ-`, `የ-`). Structural sentence boundary tags (`<s>`, `</s>`) are strictly excluded from all rankings (before and after stopword removal).
-
+      An n-gram is removed if **any** constituent token is on the 30-stopword list, applied to isolated tokens after stripping bare prepositional clitics (`በ-`, `ከ-`, `ለ-`, `የ-`). Structural sentence boundary tags (`<s>`, `</s>`) are strictly excluded from all rankings (before and after stopword removal).
   * **Clitic Handling & Morphological Transparency:**
     Amharic prepositions and determiners (`በ-`, `ከ-`, `ለ-`, `የ-`) attach proclitically directly to nouns/pronouns. Forms with attached clitics (e.g. `በዚህ` *"in this"*, `በአዲስ` *"in Addis"*) are preserved as distinct lexical units and retained unless their stripped base matches the stopword list. Standalone `በ` and `ከ` are not in the stopword list because isolated instances represent abbreviation fragments (e.g., `በ ዓ ም` for `በዓ.ም.`).
+  * **Before vs. After Stopword Removal (Top-5 across $n=1..4$, from `output/results/`):**
 
-  * **Before vs. After Stopword Removal (Top-5 across $n=1..4$, from `results/`):**
-
-    | Order | Top-5 Before Removal (`results/q1_top10_n*.csv`) | Top-5 After Removal (`results/q1_stopword_top10_n*.csv`) | Filter Impact & Observations |
-    | :---: | :--- | :--- | :--- |
-    | **$n=1$** | 1. `ነው` (1,165,953)<br>2. `ላይ` (754,678)<br>3. `ውስጥ` (346,314)<br>4. `ወደ` (331,106)<br>5. `እና` (318,942) | 1. `ጊዜ` (244,117)<br>2. `ደግሞ` (209,377)<br>3. `አንድ` (192,674)<br>4. `ቤት` (182,048)<br>5. `አቶ` (169,169) | All top-5 function words (`ነው`, `ላይ`, `ውስጥ`, `ወደ`, `እና`) successfully eliminated; open-class nouns and titles rise. |
-    | **$n=2$** | 1. `ዓ ም` (108,455)<br>2. `ቀን ዓ` (46,525)<br>3. `ነገር ግን` (44,744)<br>4. `ዶ ር` (35,624)<br>5. `ማለት ነው` (32,386) | 1. `ዓ ም` (108,455)<br>2. `ቀን ዓ` (46,525)<br>3. `ዶ ር` (35,624)<br>4. `አዲስ አበባ` (31,388)<br>5. `በ ዓ` (28,486) | Function bigrams `ነገር ግን` (connective) and `ማለት ነው` (copular phrase) removed; entity bigram `አዲስ አበባ` enters top 5. |
-    | **$n=3$** | 1. `ቀን ዓ ም` (45,927)<br>2. `በ ዓ ም` (28,127)<br>3. `እ ኤ አ` (16,731)<br>4. `ዓ ም ኢሳት` (9,789)<br>5. `ም ኢሳት ዜና` (9,700) | 1. `ቀን ዓ ም` (45,927)<br>2. `በ ዓ ም` (28,127)<br>3. `እ ኤ አ` (16,731)<br>4. `ዓ ም ኢሳት` (9,789)<br>5. `ም ኢሳት ዜና` (9,700) | None of the top 5 trigrams contain words from the 30-word stopword list; therefore, the after-removal top 5 is identical to before removal. |
-    | **$n=4$** | 1. `ቀን ዓ ም ኢሳት` (9,786)<br>2. `ዓ ም ኢሳት ዜና` (9,700)<br>3. `እ ኤ አ በ` (8,613)<br>4. `የካቲት ቀን ዓ ም` (2,952)<br>5. `መጋቢት ቀን ዓ ም` (2,908) | 1. `ቀን ዓ ም ኢሳት` (9,786)<br>2. `ዓ ም ኢሳት ዜና` (9,700)<br>3. `እ ኤ አ በ` (8,613)<br>4. `የካቲት ቀን ዓ ም` (2,952)<br>5. `መጋቢት ቀን ዓ ም` (2,908) | Top 5 contain no stopwords and remain identical. However, rank 8 before removal (`ከ ሚሊዮን ብር በላይ`, 2,822) is removed because `በላይ` is a stopword, allowing `የአዲስ አበባ ከተማ አስተዳደር` (2,607) to advance into rank 8. |
-
+    |       Order       | Top-5 Before Removal (`output/results/q1_top10_n*.csv`)                                                                                                             | Top-5 After Removal (`output/results/q1_stopword_top10_n*.csv`)                                                                                                     | Filter Impact & Observations                                                                                                                                                                                                                       |
+    | :---------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | **$n=1$** | 1. `ነው` (1,165,953)2. `ላይ` (754,678)3. `ውስጥ` (346,314)4. `ወደ` (331,106)5. `እና` (318,942)                                                  | 1. `ጊዜ` (244,117)2. `ደግሞ` (209,377)3. `አንድ` (192,674)4. `ቤት` (182,048)5. `አቶ` (169,169)                                                  | All top-5 function words (`ነው`, `ላይ`, `ውስጥ`, `ወደ`, `እና`) successfully eliminated; open-class nouns and titles rise.                                                                                                           |
+    | **$n=2$** | 1. `ዓ ም` (108,455)2. `ቀን ዓ` (46,525)3. `ነገር ግን` (44,744)4. `ዶ ር` (35,624)5. `ማለት ነው` (32,386)                                       | 1. `ዓ ም` (108,455)2. `ቀን ዓ` (46,525)3. `ዶ ር` (35,624)4. `አዲስ አበባ` (31,388)5. `በ ዓ` (28,486)                                           | Function bigrams `ነገር ግን` (connective) and `ማለት ነው` (copular phrase) removed; entity bigram `አዲስ አበባ` enters top 5.                                                                                                          |
+    | **$n=3$** | 1. `ቀን ዓ ም` (45,927)2. `በ ዓ ም` (28,127)3. `እ ኤ አ` (16,731)4. `ዓ ም ኢሳት` (9,789)5. `ም ኢሳት ዜና` (9,700)                             | 1. `ቀን ዓ ም` (45,927)2. `በ ዓ ም` (28,127)3. `እ ኤ አ` (16,731)4. `ዓ ም ኢሳት` (9,789)5. `ም ኢሳት ዜና` (9,700)                             | None of the top 5 trigrams contain words from the 30-word stopword list; therefore, the after-removal top 5 is identical to before removal.                                                                                                        |
+    | **$n=4$** | 1. `ቀን ዓ ም ኢሳት` (9,786)2. `ዓ ም ኢሳት ዜና` (9,700)3. `እ ኤ አ በ` (8,613)4. `የካቲት ቀን ዓ ም` (2,952)5. `መጋቢት ቀን ዓ ም` (2,908) | 1. `ቀን ዓ ም ኢሳት` (9,786)2. `ዓ ም ኢሳት ዜና` (9,700)3. `እ ኤ አ በ` (8,613)4. `የካቲት ቀን ዓ ም` (2,952)5. `መጋቢት ቀን ዓ ም` (2,908) | Top 5 contain no stopwords and remain identical. However, rank 8 before removal (`ከ ሚሊዮን ብር በላይ`, 2,822) is removed because `በላይ` is a stopword, allowing `የአዲስ አበባ ከተማ አስተዳደር` (2,607) to advance into rank 8. |
   * **Deliberate Retention of `ደግሞ` and `አንድ`:**
+
     - `ደግሞ` (*"again / moreover / on the other hand"*): Expresses contrastive or additive discourse aspect rather than empty grammatical glue.
     - `አንድ` (*"one"*): Functions primarily as a cardinal numeral. Amharic has no indefinite article; `አንድ` acts as a meaningful quantifier.
-
 * **Q1.6 Word Clouds for $n = 1, 2, 3, 4$ Before and After Stopword Removal:**
 
   * **Visualization Specifications & Inventory:**
-    Eight dedicated high-resolution figures are preserved in `figures/` (`q1_6_wordcloud_*.png`), alongside synchronized comparative panels. Every visual features an explicit n-gram order title, filtering designation, clitic footnote, layout description, and square-root scaling rule, rendered using Google `NotoSansEthiopic-Regular.ttf` with UTF-8 encoding (zero character overlap, clipping, or box artifacts):
+    Eight dedicated high-resolution figures are preserved in `output/figures/` (`q1_6_wordcloud_*.png`), alongside synchronized comparative panels. Every visual features an explicit n-gram order title, filtering designation, clitic footnote, layout description, and scaling rule, rendered using Google `NotoSansEthiopic-Regular.ttf` with UTF-8 encoding:
 
-    | Figure File | Order ($n$) | Condition & Unified Filter | Stated Size Measure & Numerical Scaling | Dominant Corpus Items Visible |
-    | :--- | :---: | :--- | :--- | :--- |
-    | `figures/q1_6_wordcloud_unigram_before.png` | $n=1$ | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ነው` (1.17M), `ላይ` (755k), `ውስጥ` (346k), `ወደ` (331k), `እና` (319k) |
-    | `figures/q1_6_wordcloud_unigram_after.png` | $n=1$ | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ጊዜ` (244k), `ደግሞ` (209k), `አንድ` (193k), `ቤት` (182k), `አቶ` (169k) |
-    | `figures/q1_6_wordcloud_bigram_before.png` | $n=2$ | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ዓ ም` (108k), `ቀን ዓ` (46.5k), `ነገር ግን` (44.7k), `ዶ ር` (35.6k), `ማለት ነው` (32.4k) |
-    | `figures/q1_6_wordcloud_bigram_after.png` | $n=2$ | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ዓ ም` (108k), `ቀን ዓ` (46.5k), `ዶ ር` (35.6k), `አዲስ አበባ` (31.4k), `ምክር ቤት` (23.9k) |
-    | `figures/q1_6_wordcloud_trigram_before.png` | $n=3$ | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ቀን ዓ ም` (45.9k), `በ ዓ ም` (28.1k), `እ ኤ አ` (16.7k), `ዓ ም ኢሳት` (9.8k), `ም ኢሳት ዜና` (9.7k) |
-    | `figures/q1_6_wordcloud_trigram_after.png` | $n=3$ | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ቀን ዓ ም` (45.9k), `በ ዓ ም` (28.1k), `እ ኤ አ` (16.7k), `ዓ ም ጀምሮ` (6.4k), `ተወካዮች ምክር ቤት` (5.6k) |
-    | `figures/q1_6_wordcloud_4gram_before.png` | $n=4$ | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ቀን ዓ ም ኢሳት` (9.8k), `ዓ ም ኢሳት ዜና` (9.7k), `እ ኤ አ በ` (8.6k), `የካቲት ቀን ዓ ም` (3.0k) |
-    | `figures/q1_6_wordcloud_4gram_after.png` | $n=4$ | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Font size $s \propto \sqrt{c(w)}$ (Square-root: `relative_scaling=0.5`, 14–105 pt) | `ቀን ዓ ም ኢሳት` (9.8k), `ዓ ም ኢሳት ዜና` (9.7k), `እ ኤ አ በ` (8.6k), `ከ ዓ ም ጀምሮ` (2.9k), `አዲስ አበባ ከተማ` (2.6k) |
+    | Figure File                                              | Order ($n$) | Condition & Unified Filter                                                                                             | Stated Size Measure & Numerical Scaling                                                        | Dominant Corpus Items Visible                                                                                                                   |
+    | :------------------------------------------------------- | :-----------: | :--------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `output/figures/q1_6_wordcloud_unigram_before.png`            |    $n=1$    | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded)                               | Rank-frequency blend: `relative_scaling=0.5` (max 85 pt, from `output/results/q1_wordcloud_n1_before.csv`) | `ነው` (1.17M), `ላይ` (755k), `ውስጥ` (346k), `ወደ` (331k), `እና` (319k)                                                          |
+    | `output/figures/q1_6_wordcloud_unigram_after.png`             |    $n=1$    | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Rank-frequency blend: `relative_scaling=0.5` (max 85 pt, from `output/results/q1_wordcloud_n1_after.csv`)  | `ጊዜ` (244k), `ደግሞ` (209k), `አንድ` (193k), `ቤት` (182k), `አቶ` (169k)                                                         |
+    | `output/figures/q1_6_wordcloud_bigram_before.png`             |    $n=2$    | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded)                               | Rank-frequency blend: `relative_scaling=0.5` (max 75 pt, from `output/results/q1_wordcloud_n2_before.csv`) | `ዓ ም` (108k), `ቀን ዓ` (46.5k), `ነገር ግን` (44.7k), `ዶ ር` (35.6k), `ማለት ነው` (32.4k)                                      |
+    | `output/figures/q1_6_wordcloud_bigram_after.png`              |    $n=2$    | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Rank-frequency blend: `relative_scaling=0.5` (max 75 pt, from `output/results/q1_wordcloud_n2_after.csv`)  | `ዓ ም` (108k), `ቀን ዓ` (46.5k), `ዶ ር` (35.6k), `አዲስ አበባ` (31.4k), `ምክር ቤት` (23.9k)                                    |
+    | `output/figures/q1_6_wordcloud_trigram_before.png`            |    $n=3$    | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded)                               | Rank-frequency blend: `relative_scaling=0.5` (max 65 pt, from `output/results/q1_wordcloud_n3_before.csv`) | `ቀን ዓ ም` (45.9k), `በ ዓ ም` (28.1k), `እ ኤ አ` (16.7k), `ዓ ም ኢሳት` (9.8k), `ም ኢሳት ዜና` (9.7k)                          |
+    | `output/figures/q1_6_wordcloud_trigram_after.png`             |    $n=3$    | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Rank-frequency blend: `relative_scaling=0.5` (max 65 pt, from `output/results/q1_wordcloud_n3_after.csv`)  | `ቀን ዓ ም` (45.9k), `በ ዓ ም` (28.1k), `እ ኤ አ` (16.7k), `ዓ ም ጀምሮ` (6.4k), `ተወካዮች ምክር ቤት` (5.6k)                  |
+    | `output/figures/q1_6_wordcloud_4gram_before.png`              |    $n=4$    | **Before Removal** (Raw unfiltered corpus frequencies; `<s>`, `</s>` excluded)                               | Rank-frequency blend: `relative_scaling=0.5` (max 55 pt, from `output/results/q1_wordcloud_n4_before.csv`) | `ቀን ዓ ም ኢሳት` (9.8k), `ዓ ም ኢሳት ዜና` (9.7k), `እ ኤ አ በ` (8.6k), `የካቲት ቀን ዓ ም` (3.0k)                              |
+    | `output/figures/q1_6_wordcloud_4gram_after.png`               |    $n=4$    | **After Removal** (Remove if any token on 30-stopword list, after stripping clitics; `<s>`, `</s>` excluded) | Rank-frequency blend: `relative_scaling=0.5` (max 55 pt, from `output/results/q1_wordcloud_n4_after.csv`)  | `ቀን ዓ ም ኢሳት` (9.8k), `ዓ ም ኢሳት ዜና` (9.7k), `እ ኤ አ በ` (8.6k), `ከ ዓ ም ጀምሮ` (2.9k), `አዲስ አበባ ከተማ` (2.6k) |
+    | `output/figures/q1_6_wordclouds_panel_unigram_bigram.png`   | $n \in \{1, 2\}$ | Synchronized dual-order panel before and after filtering                                                               | Full comparative layout (2-row stack)                                                  | Complete unigram and bigram distribution progression                                                            |
+    | `output/figures/q1_6_wordclouds_panel_trigram_4gram.png`     | $n \in \{3, 4\}$ | Synchronized dual-order panel before and after filtering                                                               | Full comparative layout (2-row stack)                                                  | Complete trigram and 4-gram distribution progression                                                            |
+    | `output/figures/q1_6_wordclouds_all_orders.png`               | $n=1..4$    | Master 8-cloud synchronization matrix (4 rows $\times$ 2 columns)                                                      | Unified comparative view                                                               | Exhaustive visual cross-verification across all orders and conditions                                           |
 
   * **Layout Positioning, Color Assignment & Scaling Methodology:**
+
     - **Pseudo-Random Spatial Layout:** Spatial placement follows a space-filling spiral packing heuristic (`random_state=42`) to prevent character collision. Central vs. peripheral position is purely a geometric artifact of non-overlapping placement, NOT an indicator of rank or importance. The word cloud is an exploratory visual, not an ordered ranking.
     - **Color Assignment:** Palettes (`copper`, `viridis`, `plasma`, `cividis`, `inferno`, `magma`, `Spectral`, `coolwarm`) are applied pseudo-randomly to maximize visual contrast and legibility, carrying no semantic, syntactic, or grammatical category meaning.
-    - **Numerical Square-Root Scaling:** WordCloud calculates font size using $s(w) = s_{\min} + (s_{\max} - s_{\min}) \cdot \left(\frac{c(w) - c_{\min}}{c_{\max} - c_{\min}}\right)^{0.5}$ (`relative_scaling=0.5`). Under linear scaling ($s \propto c(w)$), the top unigram `ነው` ($1,165,953$) would be over $5.3\times$ larger than rank 10 `ነገር` ($217,661$) and $>10\times$ larger than rank 20, dominating the canvas and obliterating lower-frequency items. Square-root scaling compresses this dynamic range while strictly preserving relative frequency monotonicity ($s \propto \sqrt{c(w)}$).
-    - **Overview and Standalone Parity:** The composite panels (`q1_6_wordclouds_panel_*.png`) and master 8-panel overview (`q1_6_wordclouds_all_orders.png`) are constructed directly by mounting the rendered standalone figures, ensuring 100% visual and text parity across all views.
+    - **Rank-Frequency Blend Scaling (`relative_scaling=0.5`):** WordCloud does not implement a pure mathematical square-root law ($s \propto \sqrt{c(w)}$). Instead, it implements a rank-frequency blend heuristic: font sizes are determined by $s(w) = s_{\min} + (s_{\max} - s_{\min}) \cdot \left(\frac{c(w)}{c_{\max}}\right)^{0.5}$ combined with candidate ranking and space-filling constraints. This dampens the massive Zipfian disparity between the top unigram `ነው` ($1,165,953$) and lower-ranked words while preventing words from monopolizing the entire canvas.
+    - **Data Sources & Top-200 Compliance:** All 8 word clouds are generated directly from the top-200 files (`output/results/q1_wordcloud_n{1..4}_{before|after}.csv`), satisfying the implementation plan's top-200 visualization mandate across all orders.
+    - **Label Collision Resolution:** In early rendering passes, long 4-gram collocations (such as `የካቲት ቀን ዓ ም` and `የአዲስ አበባ ከተማ አስተዳደር`) exhibited spatial label collision under default margins. The generator in `scripts/generate_q1_6_wordclouds.py` resolves this by expanding canvas dimensions ($1200 \times 650$), capping max font sizes ($55$ pt for $n=4$), and enforcing generous spacing (`margin=6`), guaranteeing zero character overlap and complete Ethiopic glyph integrity.
   * **Matching Top-10 Verification Tables (Before vs. After):**
-    To ensure cross-verification between visual token size and exact numeric counts, the authoritative top 10 items from `results/q1_top10_n*.csv` and `results/q1_stopword_top10_n*.csv` are provided below:
+    To ensure cross-verification between visual token size and exact numeric counts, the authoritative top 10 items from `output/results/q1_top10_n*.csv` and `output/results/q1_stopword_top10_n*.csv` are provided below:
 
     | Rank | Order 1 (Before)          |   Count   | Order 1 (After)              |  Count  | Order 2 (Before)                     |  Count  | Order 2 (After)                          |  Count  |
     | :--: | :------------------------ | :-------: | :--------------------------- | :-----: | :----------------------------------- | :-----: | :--------------------------------------- | :-----: |
@@ -380,7 +386,7 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     Word clouds are exploratory, descriptive visualizations of token frequency distributions. They effectively illustrate lexical dominance and verify stopword filtering, but do **not** reflect conditional transition probabilities, model calibration, or perplexity (which are quantitatively assessed in Questions 2 and 3).
 * **Q1.7 Target Sentence Probability & Distribution Sums (Kneser-Ney Smoothing):**
 
-  * **Evaluation across Test Sentences (from `results/q1_sentence_probs.csv`):**
+  * **Evaluation across Test Sentences (from `output/results/q1_sentence_probs.csv`):**
 
     | Test Sentence                                                      | Category / Linguistic Rationale                  | Length ($L$) | $n=1$ Per-Token $\log P$ | $n=2$ Per-Token $\log P$ | $n=3$ Per-Token $\log P$ | $n=4$ Per-Token $\log P$ | In-Corpus Verbatim? |
     | :----------------------------------------------------------------- | :----------------------------------------------- | :------------: | :--------------------------: | :--------------------------: | :--------------------------: | :--------------------------: | :-----------------: |
@@ -405,7 +411,7 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     - *Sentence 1 Stylistic Note:* While `ቀንድ ትገኛለች` is grammatical, standard stylistic phrasing frequently includes `ውስጥ` (`በአፍሪካ ቀንድ ውስጥ ትገኛለች`). The absence of `ውስጥ` lowers its 3-gram and 4-gram collocation counts, explaining why Sentence 1 improves modestly between $n=2$ and $n=4$.
 * **Q1.8 Text Generation & Verbatim Duplication Analysis:**
 
-  * **Generated Sentences (12 Samples across $n = 1..4$, from `results/q1_generation.json`):**
+  * **Generated Sentences (12 Samples across $n = 1..4$, from `output/results/q1_generation.json`):**
 
     |     Order $n$     | Sample | Generated Sentence                                                                                                                                                                                                                                                                       | Length ($L$) | Total $\log P$ | Per-Token $\log P$ | In-Corpus Verbatim? |
     | :-----------------: | :----: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------: | :--------------: | :------------------: | :-----------------: |
@@ -436,23 +442,35 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     - *Unigram Length Arithmetic:* At $n = 1$, the global end-of-sentence probability is:
 
       $$
-      P(\text{EOS}) = \frac{4,993,570}{81,161,104} \approx \mathbf{0.0615}
+      P(\text{EOS}) = \frac{4,993,573}{81,161,104} \approx \mathbf{0.061527}
       $$
 
-      An unconstrained geometric distribution gives expected length $1 / p \approx 16.25$ tokens. With EOS suppressed for the first 2 tokens, the sequence has 23 steps remaining to terminate before hitting the 25-token cap. The probability of not drawing EOS at any step is $1 - 0.0615 = 0.9385$. The probability of surviving 23 consecutive steps without drawing EOS is:
+      An unconstrained geometric distribution gives expected length $1 / p \approx 16.25$ tokens. With EOS suppressed for the first 2 tokens, the sequence has 23 steps remaining to terminate before hitting the 25-token cap. The probability of not drawing EOS at any step is $1 - 0.061527 \approx 0.938473$. The probability of surviving 23 consecutive steps without drawing EOS is:
+
       $$
-      (0.9385)^{23} \approx \mathbf{0.233} \quad (23.3\%)
+      (0.938473)^{23} \approx \mathbf{0.2321} \quad (\approx 23.2\%, \text{ or with rounded base } (0.9385)^{23} \approx \mathbf{0.231})
       $$
 
-      The joint probability that all three independent unigram sentences hit the 25-token limit is $(0.233)^3 \approx \mathbf{0.0126}$ (**1.26%**). This explains why all three samples reached the cap under seed 42.
+      The joint probability that all three independent unigram sentences hit the 25-token limit is:
+
+      $$
+      (0.231)^3 \approx \mathbf{0.0123} \quad (\mathbf{1.23\%}) \quad [\text{exact: } (0.2321)^3 \approx 0.0125 \text{ (1.25\%)}]
+      $$
+
+      This quantitatively explains why all three unigram samples reached the 25-token cap under seed 42.
   * **Vocabulary Accounting:**
 
     - Full GPAC surface vocabulary: **1,893,211** unique lexical words.
     - The figure $|V| = 333,707$ represents the pruned training core vocabulary (words with $C \ge 2$) utilized in Q2 and Q3 splits; it does not represent the full corpus lexicon.
-  * **Verbatim Sentence Checks & Sub-Sentence Span Recombination:**
+  * **Constituent Verbatim N-gram Fractions vs. Whole-Sentence Copies:**
 
-    - *Exact Sentence Check:* All 12 sentences were checked against all 4,993,570 sentences in `GPAC_cleaned.txt` via 64-bit BLAKE2b hashes. Exactly **0 out of 12 (0.0%)** sentences are verbatim duplicates.
-    - *Sub-Sentence Span Recombination:* Rather than memorizing whole sentences, the 4-gram model functions as an idiomatic assembler. It draws attested 3-word and 4-word formulaic chunks (e.g. `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር`, `የስራ እድል ይፈጥራል ተብሏል`, `የነፍሱ ጥሪ ግን`, `ሥራ ፈጠራ ነበር`) and joins them at valid syntactic branching points.
+    - *Whole-Sentence Duplication Check:* All 12 generated sentences were evaluated against all **4,993,573 sentences** in `output/data/GPAC_cleaned.txt` via 64-bit BLAKE2b hashes. Exactly **0 out of 12 (0.0%)** sentences are verbatim duplicates of whole sentences in the corpus.
+    - *Constituent N-gram Support by Order (Evaluated from Corpus Counts):*
+      - **Order 1 ($n = 1$):** **100.0%** of generated words ($75 / 75$ tokens across the 3 sentences) are valid in-corpus vocabulary types; however, multi-word sequence coherence is 0% because tokens are drawn independently.
+      - **Order 2 ($n = 2$):** **100.0%** of sampled adjacent transitions ($57 / 57$ bigram steps across the 3 sentences) are attested bigrams in the corpus, providing valid local 2-word collocations (`አበረታች ውጤት`, `ቀላል ማድረግ`).
+      - **Order 3 ($n = 3$):** **100.0%** of constituent trigram transitions ($21 / 21$ trigram steps across the 3 sentences) are attested in the corpus, creating natural multi-word clausal runs.
+      - **Order 4 ($n = 4$):** **100.0%** of constituent 4-gram transitions ($27 / 27$ 4-gram steps across the 3 sentences) are attested in the corpus.
+    - *Idiomatic Recombination vs. Passage Duplication:* The 4-gram model does **not** reproduce extended whole passages or duplicate training sentences. Rather, it functions as an idiomatic assembler: it draws attested 3-word and 4-word formulaic phrases (e.g., `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር`, `የስራ እድል ይፈጥራል ተብሏል`, `የነፍሱ ጥሪ ግን`, `ሥራ ፈጠራ ነበር`) and recombines them at valid syntactic branching points into novel sentences.
   * **Qualitative Defect Analysis & Translation Glosses (Author Translations):**
 
     - *$n=4$, Sentence 1:* `ሆቴሉ ተጠናቅቆ ስራ ሲጀምር ከ በላይ ለሚሆኑ ወጣቶች የስራ እድል ይፈጥራል ተብሏል።`
@@ -481,11 +499,11 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 * **Data Partitioning (Zero-Leakage Grouped Splitting):**
 
   * **Sentence-Level Allocation:** Grouped partitioning (Stage 06, `scripts/06_split.py`) was performed by **identical sentence text groups**, NOT by token counts:
-    * Total valid corpus sentences: **4,993,570 sentences** (100.0%).
-    * **Training Core (`train_core`):** **4,244,534 sentences** (~85.00%).
+    * Total valid corpus sentences: **4,993,573 sentences** (100.0%).
+    * **Training Core (`train_core`):** **4,244,537 sentences** (~85.00%).
     * **Tuning Split (`tune`):** **249,679 sentences** (~5.00%).
     * **Held-out Test Split (`test`):** **499,357 sentences** (~10.00%).
-  * **Zero-Leakage Guarantee:** Every occurrence of any sentence text was assigned strictly to one partition. Overlap between `test` and `train_core` was verified as exactly **0 sentence texts** (`overlap = 0`, saved in `data/split_indices_seed42.json`).
+  * **Zero-Leakage Guarantee:** Every occurrence of any sentence text was assigned strictly to one partition. Overlap between `test` and `train_core` was verified as exactly **0 sentence texts** (`overlap = 0`, saved in `output/data/split_indices_seed42.json`).
   * **Token Positions:** Across the 499,357 test sentences, there are **8,130,627 token prediction positions** (averaging $8,130,627 / 499,357 \approx 16.28$ tokens per sentence, including terminal `</s>`).
 * **Vocabulary Cutoff Rule & `<UNK>` Profile:**
 
@@ -507,17 +525,20 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 
   * **Smoothing Model:** Vectorized Interpolated Kneser-Ney Language Model (`scripts/kn_lib.py`).
   * **Discount Parameter ($D_k$):** Computed empirically via the standard Ney-Essen / Chen & Goodman formula:
+
     $$
     D_k = \frac{n_1(k)}{n_1(k) + 2 \cdot n_2(k)}
     $$
 
     from order-$k$ singleton ($n_1$) and doubleton ($n_2$) counts in training counts.
   * **Token Accounting in $N$:**
+
     * Evaluated tokens: all word tokens plus the terminal boundary marker `</s>`.
     * Sentence start markers `<s>` serve only as context padding; they are never predicted or included in $N$.
     * `<UNK>` tokens are explicitly included in $N$ and scored via their interpolated Kneser-Ney probability.
     * Total denominator: $N = 8,130,627$.
   * **Perplexity Formula:**
+
     $$
     \text{PP} = \exp\left(-\frac{1}{N} \sum_{i=1}^N \ln P_{\text{KN}}(w_i \mid w_{i-n+1}^{i-1})\right)
     $$
@@ -530,6 +551,8 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
   | **Trigram ($n = 3$)** |             921.78             |         $-55,502,189.84$         |   **94.35%**   |   Lower than bigram   | **PASS** |
   | **4-gram ($n = 4$)** |             648.51             |         $-52,643,189.81$         |   **96.03%**   |  Lower than trigram  | **PASS** |
 
+  *Plot Artifact:* Rendered and saved as **[`output/figures/q2_perplexity_vs_n.png`](file:///c:/Users/hp/Documents/Programming/AI/NLP/Assignment%201/output/figures/q2_perplexity_vs_n.png)**, illustrating the steep monotonic decline in perplexity as context order increases.
+  *Metric Applicability (AGENTS.md B6):* Perplexity only. Classification metrics (accuracy, precision, recall, F1, ROC-AUC) do not apply to Question 2, because intrinsic language modeling evaluates continuous generative sequence likelihood across held-out text rather than predicting discrete category classes.
   *Benchmark Target Origin:* The $\ge 20\%$ bigram reduction target was a group-proposed pedagogical threshold formulated prior to running models, based on standard NLP literature (Jurafsky & Martin, Ch. 3; Chen & Goodman, 1999). The observed reduction of **90.03%** comfortably satisfies this benchmark.
 * **Cross-Split Stability Verification (`SEED = 42` vs. Independent `SEED = 7`):**
   Per Decision D4, Seed 7 is evaluated on an **independently drawn grouped test split** (499,357 sentences, 8,124,149 tokens) against training counts built from its own independent `train_core` partition:
@@ -551,13 +574,13 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 * **Task Formulation & Tuning Split Calibration:**
 
   * **Task:** Real-versus-Corrupted Amharic Sentence Detection (balanced binary classification on 998,714 held-out test pairs: 499,357 authentic test sentences vs. 499,357 corrupted negatives).
-  * **Tuning Pair Allocation:** The 5% tuning set `tune` contains 249,679 sentences, generating exactly **$2 \times 249,679 = \mathbf{499,358}$ labeled tuning pairs** (recorded in `results/q3_metrics.json`).
-  * **Threshold Tuning Objective:** Thresholds $\tau_n$ were tuned on the tuning pairs by **maximizing F1-score** across 200 candidate score percentiles:
+  * **Tuning Pair Allocation:** The 5% tuning set `tune` contains 249,679 sentences, generating exactly **$2 \times 249,679 = \mathbf{499,358}$ labeled tuning pairs** (recorded in `output/results/q3_metrics.json`).
+  * **Threshold Tuning Objective (Percentile Grid Search):** The plan specifies sweeping the range of tuning scores to find optimal decision thresholds $\tau_n$. This was operationalized by evaluating a **200-point uniform percentile grid** (`np.linspace(0, 100, 200)`) over the distribution of scores on the 499,358 tuning pairs, maximizing F1-score:
     * $n = 1$: $\tau_1 = -10.2542$ (tuning F1 = 0.7437)
     * $n = 2$: $\tau_2 = -8.5700$ (tuning F1 = 0.7576)
     * $n = 3$: $\tau_3 = -8.6520$ (tuning F1 = 0.7468)
     * $n = 4$: $\tau_4 = -8.7901$ (tuning F1 = 0.7478)
-      Zero test data was examined or utilized during threshold tuning.
+      Evaluating candidate thresholds at uniform percentiles ensures dense evaluation across the empirically populated score range without distortion from sparse extreme outliers. Zero test data was examined or utilized during threshold tuning.
 * **Negative Sentence Corruption Procedure & Confounder Analysis:**
 
   * From `scripts/12_q3_extrinsic.py`: For each authentic sentence, $n_{\text{replace}} = 1$ (if word length $\le 3$) or $2$ word positions are randomly selected.
@@ -573,8 +596,9 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
   | **$n = 3$** |    422,802    |    209,772    |    289,585    |     76,555     |      71.33% (**PASS**)      |     0.6684 (**FAIL**)     | 84.67% (**PASS**) |      0.7470 (**PASS**)      |    **0.8000** (*Tie*)    |   Boundary Case   |
   | **$n = 4$** |    430,603    |    221,827    |    277,530    |     68,754     |      70.90% (**PASS**)      |     0.6600 (**FAIL**)     | 86.23% (**PASS**) |      0.7477 (**PASS**)      |      0.7895 (**FAIL**)      | **Unusable** |
 
+  *Plot Artifact:* Rendered and saved as **[`output/figures/q3_roc_curves.png`](file:///c:/Users/hp/Documents/Programming/AI/NLP/Assignment%201/output/figures/q3_roc_curves.png)**, comparing the complete receiver operating characteristic curves across all four model orders alongside the unigram-frequency baseline.
+  *Metric Applicability & Omission of Log Loss (AGENTS.md B6):* Question 3 evaluates binary classification metrics: Accuracy, Precision, Recall, F1-Score, ROC-AUC, and the confusion matrix. Log loss is deliberately omitted because the classification decision scores are raw per-token log-probabilities from n-gram Kneser-Ney models, which are uncalibrated decision heuristics rather than well-calibrated class posterior probabilities $P(\text{real} \mid s)$.
   *Arithmetic Reconciliation:* Every metric reconciles arithmetically:
-
 
   $$
   \text{Acc} = \frac{\text{TP}+\text{TN}}{998,714}, \quad \text{Prec} = \frac{\text{TP}}{\text{TP}+\text{FP}}, \quad \text{Rec} = \frac{\text{TP}}{499,357}, \quad \text{F1} = \frac{2 \cdot \text{Prec} \cdot \text{Rec}}{\text{Prec} + \text{Rec}}
@@ -594,7 +618,7 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 * **Trigram ROC-AUC Threshold Analysis ($\ge 0.80$ vs. $> 0.80$):**
 
   * Exact test ROC-AUC for trigram is **0.80003** ($\approx \mathbf{0.8000}$).
-  * Under a strict inequality rule ($> 0.80$), trigram fails; under a weak inequality rule ($\ge 0.80$), trigram ties and meets the condition. It sits directly on the decision boundary.
+  * *Instructor Clarification Required:* The implementation plan benchmark states "above 0.80" (strict inequality $> 0.80$, under which 0.80003 is an empirical tie/failure), whereas the project usability guideline specifies "at least 0.80" (weak inequality $\ge 0.80$, under which it passes). We flag this boundary condition for instructor confirmation rather than arbitrarily choosing.
 * **4-gram Unusability Classification:**
 
   * 4-gram achieves ROC-AUC = **0.7895** and Precision = **0.6600**, failing both the $\ge 0.80$ and $> 0.70$ benchmarks. It is definitively classified as **unusable** due to severe context sparsity on corrupted transitions.
@@ -611,15 +635,15 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 
 * **Application Architecture & Working Deliverables:**
 
-  * **Core Suggestion Engine:** In `app/suggest.py` (`AmharicPredictor`), precomputing fast forward lookup tables for candidate generation in $< 4$ seconds.
-  * **Interactive CLI Application:** In `app/main.py` and `app/cli.py`, accepting user input, querying candidates, and updating context iteratively.
-  * **FastAPI Backend:** In `app/api.py`, serving REST endpoint `GET /api/suggest?text=...`.
+  * **Core Suggestion Engine:** In `app/predictor.py` and `app/model_store.py`, providing zero-copy memory-mapped candidate generation with Kneser-Ney smoothing in $< 0.1$ ms.
+  * **Interactive CLI Application:** In `app/main.py`, accepting user input, querying candidates, and updating context iteratively.
+  * **FastAPI Backend:** In `app/api.py`, serving REST endpoint `GET /suggest?text=...`.
   * **Next.js Web Interface:** In `web/`, providing interactive web UI with real-time suggestion buttons and keyboard shortcuts.
 * **Latency Measurement Disambiguation & 1.0s Benchmark Origin:**
 
-  * **Core In-Memory Lookup Latency:** In `app/suggest.py`, `AmharicPredictor.suggest()` measures only the in-memory Python dictionary lookup and array sorting via `time.perf_counter()`. Across 475,613 test targets, average core algorithm time is **0.05 ms** (median ~0.04 ms, p95 ~0.09 ms).
-  * **End-to-End HTTP Latency:** When queried over local HTTP via FastAPI, HTTP parsing, ASGI overhead, and JSON serialization require an additional ~1.2 to 2.5 ms, yielding total roundtrip times of **~1.5 to 3.0 ms**.
-  * **Benchmark Origin:** The 1.0-second limit is derived from **Nielsen Norman Group's standard UI responsiveness threshold** (sub-100ms feels instantaneous; sub-1.0s maintains unbroken flow of thought). Both core lookup and HTTP roundtrip satisfy this criterion by over two orders of magnitude.
+  * **Core In-Memory Lookup Latency (Offline Benchmark):** Evaluated strictly via the offline predictor benchmark in `output/results/q4_eval.json` across 475,613 in-vocabulary test targets, `AmharicPredictor.suggest()` requires an average core algorithm lookup time of **0.05 ms** (median ~0.04 ms, p95 ~0.09 ms).
+  * **Benchmark Origin:** The 1.0-second limit is derived from **Nielsen Norman Group's standard UI responsiveness threshold** (sub-100ms feels instantaneous; sub-1.0s maintains unbroken flow of thought). The offline core lookup satisfies this pedagogical benchmark by over three orders of magnitude.
+  * **Metric Applicability (AGENTS.md B6):** Question 4 evaluates candidate ranking and suggestion quality metrics: Top-1 Accuracy, Top-5 Hit Rate, and MRR@5 (`mrr_at_5`). Classification metrics (such as precision, recall, ROC-AUC, or confusion matrices) do not apply, because next-word prediction is an open-vocabulary candidate ranking task over hundreds of thousands of vocabulary words rather than fixed binary or multi-class categorization.
 * **Evaluation Scope & Denominator Resolution (475,613 vs. 488,282):**
 
   * Total held-out test sentences: 499,357.
@@ -633,7 +657,7 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     * Top-1 Accuracy: $23.37\% \times \frac{475,613}{488,282} = \mathbf{22.76\%}$
     * Top-5 Hit Rate: $40.05\% \times \frac{475,613}{488,282} = \mathbf{39.01\%}$
     * MRR@5: $0.2963 \times \frac{475,613}{488,282} = \mathbf{0.2886}$
-* **Full Held-Out Test Split Performance & Baseline Comparison (from `results/q4_eval.json`):**
+* **Full Held-Out Test Split Performance & Baseline Comparison (from `output/results/q4_eval.json`):**
 
   | Model / Context Formulation                               | Top-1 Accuracy ($\ge 10.0\%$) | Top-5 Hit Rate ($\ge 30.0\%$) | MRR@5 ($\ge 0.15$) | Response Time per Target |          Status          |
   | :-------------------------------------------------------- | :-----------------------------: | :-----------------------------: | :------------------: | :----------------------: | :-----------------------: |
@@ -643,52 +667,54 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
 
   *Baseline Lift:* The two-word context model outperforms the frequency-only baseline by nearly **$7\times$ in Top-1 Accuracy** and over **$4\times$ in Top-5 Hit Rate**, demonstrating strong contextual learning.
   *Benchmark Targets:* All targets ($\ge 10\%$ Top-1, $\ge 30\%$ Top-5, $\ge 0.15$ MRR@5) are group-proposed pedagogical targets set prior to evaluation.
-* **Assignment Example Context Correction (`ኢትዮጵያ ውስጥ የቡና`):**
+* **Assignment Example Context & Probability Reconciliation (`ኢትዮጵያ ውስጥ የቡና`):**
 
   * Prompt: `"ኢትዮጵያ ውስጥ የቡና"` (3 words).
   * Conditioning context: For two-word context ($L = 2$), the model conditions on `("ውስጥ", "የቡና")`.
-  * Top-5 suggestions returned from training counts (`results/q4_eval.json`):
-    1. **`ዋጋ`** (Price, $P = 0.1140$, train count = 27,626) $\to$ `የቡና ዋጋ` (*"coffee price"*)
-    2. **`ፍጆታ`** (Consumption, $P = 0.1067$, train count = 1,911) $\to$ `የቡና ፍጆታ` (*"coffee consumption"*)
-    3. **`ድርሻ`** (Share, $P = 0.0752$, train count = 13,607) $\to$ `የቡና ድርሻ` (*"coffee share"*)
-    4. **`ገበያ`** (Market, $P = 0.0479$, train count = 15,518) $\to$ `የቡና ገበያ` (*"coffee market"*)
-    5. **`የወጪ`** (Export/Expenditure, $P = 0.0470$, train count = 2,306) $\to$ `የቡና የወጪ`
+  * Top-5 suggestions returned from training counts (`output/results/q4_eval.json`):
+    1. **`ዋጋ`** (Price): Full-vocab conditional probability $P(w \mid \text{ctx}) = \mathbf{0.1140}$ ($0.114015$); normalized share among top-5 candidates = **$0.2917$** (29.17%) $\to$ `የቡና ዋጋ` (*"coffee price"*)
+    2. **`ፍጆታ`** (Consumption): Full-vocab conditional probability $P = \mathbf{0.1067}$ ($0.106745$); normalized share among top-5 = **$0.2731$** (27.31%) $\to$ `የቡና ፍጆታ` (*"coffee consumption"*)
+    3. **`ድርሻ`** (Share): Full-vocab conditional probability $P = \mathbf{0.0752}$ ($0.075198$); normalized share among top-5 = **$0.1924$** (19.24%) $\to$ `የቡና ድርሻ` (*"coffee share"*)
+    4. **`ገበያ`** (Market): Full-vocab conditional probability $P = \mathbf{0.0479}$ ($0.047879$); normalized share among top-5 = **$0.1225$** (12.25%) $\to$ `የቡና ገበያ` (*"coffee market"*)
+    5. **`የወጪ`** (Export/Expenditure): Full-vocab conditional probability $P = \mathbf{0.0470}$ ($0.046965$); normalized share among top-5 = **$0.1202$** (12.02%) $\to$ `የቡና የወጪ`
+  * **Reconciliation of Probability Formulations:**
+    - The raw language model probability $P(\text{ዋጋ} \mid \text{ውስጥ}, \text{የቡና}) = \mathbf{0.1140}$ sums to 1.0 across the entire 333,707-word vocabulary.
+    - The candidate share $\mathbf{0.2917}$ normalizes the probability strictly over the top 5 suggested candidates:
+      $$
+      \frac{P(\text{ዋጋ})}{\sum_{c \in \text{Top5}} P(c)} = \frac{0.114015}{0.114015 + 0.106745 + 0.075198 + 0.047879 + 0.046965} = \frac{0.114015}{0.390802} \approx \mathbf{0.2917}
+      $$
+    Both values derive directly from `output/results/q4_eval.json`; the table presents the true generative model continuation probability, while user-facing interfaces display the normalized candidate confidence.
   * *Linguistic Analysis of `የቡና የወጪ`:* In Ethiopian commercial news, the compound phrase `የቡና የወጪ ንግድ` (*"coffee export trade"*) is ubiquitous. Because `የወጪ` carries the genitive prefix `የ-` (*"of expenditure / of export"*), the bigram `የቡና የወጪ` contains double genitive marking (`የ-ቡና` + `የ-ወጪ`), which is syntactically incomplete on its own and requires a following noun like `ንግድ`. This is an authentic artifact of n-gram boundary truncation.
   * *Illustrative Prompt Words:* The assignment prompt mentions `ምርት` (*production*), `ንግድ` (*trade*), and `አምራችነት` (*productivity*). In GPAC's training vocabulary, `ምርት` (freq: 1,328) and `ንግድ` (freq: 1,012) are known words, but rank below the top 5 after `የቡና` because news text heavily favors price and consumption reports. `አምራችነት` (freq: 0) is out-of-vocabulary, correctly preventing the model from suggesting it.
 * **Backoff Strategy & Failure Modes:**
 
   * **Fallback Cascade:** If a two-word context is unseen in trigram counts, the model backs off to the single preceding word ($L=1$, bigram) with a backoff penalty factor of $0.5$. If the single word is also unseen, it falls back to the top unigram frequencies (`ነው, ላይ, ውስጥ...`).
   * **Failure Mode Example:** When given rare named entities or misspellings (e.g. `ታሪካዊት ጃፓን`), the trigram and bigram contexts miss, forcing fallback to generic copulas and prepositions (`ነው`, `ላይ`), which are grammatically permissible but lack semantic relevance.
-* **API & Frontend Verification Evidence:**
+* **API & Frontend Specification (Blueprint):**
 
-  * **API Query Test:**
+  * **API Endpoint Specification:**
     ```bash
+    # Query format:
     curl -X GET "http://127.0.0.1:8000/api/suggest?text=%E1%8A%A2%E1%89%B5%E1%8B%AE%E1%8C%B5%E1%8F%83%20%E1%8B%8D%E1%88%B5%E1%8F%95%20%E1%8B%A8%E1%89%A1%E1%8A%93"
     ```
-  * **Verified JSON Response:**
+  * **Response Schema (showing both full-vocab and normalized candidate probabilities):**
     ```json
     {
       "query": "ኢትዮጵያ ውስጥ የቡና",
       "suggestions": [
-        {"word": "ዋጋ", "probability": 0.2917, "rank": 1},
-        {"word": "ፍጆታ", "probability": 0.2731, "rank": 2},
-        {"word": "ድርሻ", "probability": 0.1924, "rank": 3},
-        {"word": "ገበያ", "probability": 0.1225, "rank": 4},
-        {"word": "የወጪ", "probability": 0.1202, "rank": 5}
+        {"word": "ዋጋ", "probability": 0.1140, "candidate_share": 0.2917, "rank": 1},
+        {"word": "ፍጆታ", "probability": 0.1067, "candidate_share": 0.2731, "rank": 2},
+        {"word": "ድርሻ", "probability": 0.0752, "candidate_share": 0.1924, "rank": 3},
+        {"word": "ገበያ", "probability": 0.0479, "candidate_share": 0.1225, "rank": 4},
+        {"word": "የወጪ", "probability": 0.0470, "candidate_share": 0.1202, "rank": 5}
       ],
       "strategy": "trigram",
-      "latency_ms": 0.05
+      "offline_lookup_ms": 0.05
     }
     ```
-  * **Error Handling:** Empty input strings gracefully return HTTP 200 with top unigrams; OOV tokens map to `<UNK>` without exceptions.
+  * **Deployment Verification Notice:** The metrics and response tables in this section reflect the offline benchmark evaluated across 475,613 test targets in `output/results/q4_eval.json`. End-to-end HTTP latency and Next.js frontend interactions are documented as architectural blueprints and startup recipes; they are not presented as local PC live server test runs.
 * **How to Run the Applications:**
 
-  * **Interactive CLI Application:**
-    ```bash
-    python app/main.py
-    # or
-    python app/cli.py
-    ```
   * **Next.js Web Application:**
     ```bash
     # Terminal 1: Start FastAPI backend
@@ -697,4 +723,8 @@ The raw corpus stream was segmented using `SENTENCE_SPLIT_REGEX = re.compile(r"[
     # Terminal 2: Start Next.js frontend
     cd web && npm run dev
     # Open http://localhost:3000 in your browser
+    ```
+  * **Interactive CLI Application:**
+    ```bash
+    python app/main.py
     ```

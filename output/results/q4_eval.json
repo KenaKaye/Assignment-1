@@ -1,0 +1,80 @@
+{
+  "benchmark_targets": {
+    "top1_target": 0.1,
+    "top5_target": 0.3,
+    "mrr_target": 0.15,
+    "label": "proposed target set by the group, not a published standard"
+  },
+  "target_counts": {
+    "evaluated_targets": 475613,
+    "skipped_unk_targets": 12669,
+    "total_candidate_sentences": 488282
+  },
+  "metrics": {
+    "one_word_context": {
+      "context_length": 1,
+      "evaluated_targets": 475613,
+      "top1_accuracy": 0.1795,
+      "top5_hit_rate": 0.3291,
+      "mrr_at_5": 0.2348,
+      "time_sec": 13.77,
+      "proposed_targets": "Top-1 >= 0.10, Top-5 >= 0.30, MRR@5 >= 0.15 (proposed target set by group)",
+      "meets_benchmarks": true
+    },
+    "two_word_context": {
+      "context_length": 2,
+      "evaluated_targets": 475613,
+      "top1_accuracy": 0.2337,
+      "top5_hit_rate": 0.4005,
+      "mrr_at_5": 0.2963,
+      "time_sec": 2259.91,
+      "proposed_targets": "Top-1 >= 0.10, Top-5 >= 0.30, MRR@5 >= 0.15 (proposed target set by group)",
+      "meets_benchmarks": true
+    }
+  },
+  "example_prompt_output": {
+    "prompt": "ኢትዮጵያ ውስጥ የቡና",
+    "prompt_token_ids": [
+      43,
+      5,
+      2473
+    ],
+    "suggestions": [
+      {
+        "token_id": 226,
+        "word": "ዋጋ",
+        "train_count": 27626,
+        "prob": 0.114015,
+        "verified_in_corpus": true
+      },
+      {
+        "token_id": 4208,
+        "word": "ፍጆታ",
+        "train_count": 1911,
+        "prob": 0.106745,
+        "verified_in_corpus": true
+      },
+      {
+        "token_id": 545,
+        "word": "ድርሻ",
+        "train_count": 13607,
+        "prob": 0.075198,
+        "verified_in_corpus": true
+      },
+      {
+        "token_id": 463,
+        "word": "ገበያ",
+        "train_count": 15518,
+        "prob": 0.047879,
+        "verified_in_corpus": true
+      },
+      {
+        "token_id": 3509,
+        "word": "የወጪ",
+        "train_count": 2306,
+        "prob": 0.046965,
+        "verified_in_corpus": true
+      }
+    ]
+  }
+}
