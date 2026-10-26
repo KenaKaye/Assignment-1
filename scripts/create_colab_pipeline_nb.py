@@ -193,9 +193,22 @@ for ord_k, v in q2_data["seed_7"]["orders"].items():
 with open("output/results/q3_metrics.json", "r", encoding="utf-8") as f:
     q3_data = json.load(f)
 
-print("\\nExtrinsic Classification Metrics:")
-df_q3 = pd.DataFrame(q3_data)
-display(df_q3.T[["accuracy", "precision", "recall", "f1", "roc_auc"]])"""))
+print("\\nExtrinsic Classification Metrics (on 998,714 Held-Out Test Pairs):")
+metrics_rows = []
+for order_key, m_info in q3_data.get("models", {}).items():
+    metrics_rows.append({
+        "Order": m_info.get("order"),
+        "Accuracy": f"{m_info.get('accuracy', 0) * 100:.2f}%",
+        "Precision": f"{m_info.get('precision', 0) * 100:.2f}%",
+        "Recall": f"{m_info.get('recall', 0) * 100:.2f}%",
+        "F1-Score": f"{m_info.get('f1_score', 0):.4f}",
+        "ROC-AUC": f"{m_info.get('roc_auc', 0):.4f}",
+        "Threshold (tau)": m_info.get("tau_threshold"),
+        "Target Met": "Yes" if m_info.get("usable") else "No"
+    })
+
+df_q3 = pd.DataFrame(metrics_rows)
+display(df_q3)"""))
 
     # Cell 8: Q4 Evaluation
     nb["cells"].append(code("""print("--- Running Q4 Offline Benchmark Evaluation ---")
